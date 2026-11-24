@@ -74,7 +74,7 @@ If the native launcher exits, inspect `.syncops/logs/`. Ports 5173, 8000 and 800
 
 ## Project records
 
-- [Portfolio walkthrough](docs/portfolio.md)
+- [Portfolio walkthrough](docs/portfolio.md) and [verification evidence](docs/verification.md)
 - [Engineering workflow](docs/engineering-workflow.md)
 - [Specification](PROJECT_SPEC.md), [status](PROJECT_STATUS.md), [roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
 - [MIT license](LICENSE)

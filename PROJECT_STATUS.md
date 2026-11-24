@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-The native Windows MVP is implemented and independently verified through its API and worker. A native architecture agent proposed the service boundaries and reliability semantics. Backend, frontend and platform agents delivered their assigned areas. Independent QA verified scenarios A–G, and the lead addressed material defensive review findings.
+The Windows MVP is implemented and independently verified through its API and worker. Hosted CI verified PostgreSQL Compose and the Chromium operations workflow. Independent QA verified scenarios A–G, the lead addressed material defensive review findings, and a technical writer assembled the acceptance evidence.
 
 ## Architecture
 
@@ -27,9 +27,15 @@ React/Vite console, FastAPI control plane, SQLAlchemy persistence, Alembic migra
 | Native snapshot and restore | Passed | Restored a live SQLite snapshot to a new path. Event, attempt and mock-operation counts matched (2 each) |
 | Frontend types and build | Passed | `npm --prefix frontend run build` compiled TypeScript and Vite production assets |
 | Windows browser QA | Blocked | Browser origin approval declined access to `127.0.0.1:5173` |
-| Compose and PostgreSQL | Not Run locally | Docker and WSL absent. Hosted CI has an isolated Compose and browser test |
+| Compose, PostgreSQL and hosted Chromium | Passed in hosted CI | The [MVP workflow](https://github.com/kyoukoq/syncops/actions/runs/45506220115) built and started Compose, verified real PostgreSQL-backed delivery, and passed the Chromium sign-in, dead-letter search, replay, preserved attempts, audit, theme, mobile navigation and sign-out checks |
 | Kubernetes, GitOps and centralized observability | Not Run | Planned after core verification |
 
 ## Defensive review
 
 Scoped event audit to admins, limited smoke-test authentication to loopback with redirects disabled, created Compose secrets with POSIX mode `0600`, and increased API memory headroom for concurrent scrypt computations. Local secret files and SQLite artifacts are ignored by Git.
+
+## Remaining gates
+
+- Run Docker and the advanced lab on a suitable host. The current Windows machine has no Docker or WSL installation.
+- Review the primary console visually and capture product screenshots. The Windows browser origin remained blocked in this session.
+- Verify custom Codex role registration in a new trusted session, deploy Helm with Argo CD, and run the remaining incident, rollback, scanning, SBOM and database recovery checks in the [Advanced DevOps Lab milestone](https://github.com/kyoukoq/syncops/milestone/1).

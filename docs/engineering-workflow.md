@@ -12,6 +12,7 @@ SyncOps uses the lead Codex agent for architecture approval, shared contracts, i
 | Platform | `deploy/`, `scripts/`, Compose and workflows | Native launcher, container profile and delivery checks |
 | QA | `e2e/native_delivery.py` | Verified live scenarios A–F and a separate worker process crash drill |
 | Security | Read-only review | Raised audit exposure, cleartext local secret modes, smoke redirect and container memory risks. The lead applied remediations |
+| Documentation | `docs/verification.md` | Recorded acceptance evidence, verification commands and remaining gates |
 
 Implementation began with explicit non-overlapping file ownership in a shared working folder while Git metadata writes required escalation. The local foundation commit established `main` and a separate `feature/core-mvp` branch. A detached test worktree successfully opened the foundation commit. The lead owns integration and remote writes.
 

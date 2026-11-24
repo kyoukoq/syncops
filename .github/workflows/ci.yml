@@ -66,7 +66,9 @@ jobs:
           persist-credentials: false
       - name: Generate isolated CI credentials
         shell: pwsh
-        run: ./scripts/Initialize-Compose.ps1
+        run: |
+          ./scripts/Initialize-Compose.ps1
+          if ((stat -c %a .env) -ne '600') { throw 'Seed secrets must be owner-readable only' }
       - name: Build and start the core stack
         run: |
           docker compose config --quiet
@@ -85,6 +87,7 @@ jobs:
       - name: Exercise the isolated Compose UI in Chromium
         run: |
           source .env
+          echo "::add-mask::$SYNCOPS_ADMIN_PASSWORD"
           SYNCOPS_E2E_URL=http://127.0.0.1:8080/ \
             SYNCOPS_E2E_ADMIN_PASSWORD="$SYNCOPS_ADMIN_PASSWORD" npm --prefix frontend run test:e2e
       - name: Show container state
