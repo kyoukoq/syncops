@@ -1,0 +1,107 @@
+name: Observability integration
+
+on:
+  pull_request:
+    paths:
+      - 'compose.yaml'
+      - 'compose.observability.yaml'
+      - 'backend/**'
+      - 'scripts/Initialize-Compose.ps1'
+      - 'scripts/smoke.py'
+      - 'deploy/observability/**'
+      - '.github/workflows/observability.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: observability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  monitoring:
+    if: toJSON(github.event.repository.private) == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMPOSE_FILE: compose.yaml:compose.observability.yaml
+      COMPOSE_PROJECT_NAME: syncops-monitoring-ci
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Initialize isolated lab credentials
+        shell: pwsh
+        run: ./scripts/Initialize-Compose.ps1
+      - name: Start the lab and check alert configuration
+        run: |
+          password=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          printf 'SYNCOPS_GRAFANA_PASSWORD=%s\n' "$password" >> .env
+          docker compose config --quiet
+          docker compose up -d --build --wait --wait-timeout 150
+          docker compose exec -T prometheus promtool check config /etc/prometheus/prometheus.yml
+          docker compose exec -T -w /etc/prometheus prometheus promtool test rules alert-rules.test.yml
+          docker compose exec -T alertmanager amtool check-config /etc/alertmanager/alertmanager.yml
+      - name: Deliver a synthetic event and verify the observability services
+        run: |
+          python3 scripts/smoke.py --credentials .env
+          for attempt in {1..20}; do
+            if curl --fail --silent --show-error --get 'http://127.0.0.1:9090/api/v1/query' \
+              --data-urlencode 'query=syncops_events{job="syncops-api",status="succeeded"} > 0' \
+              | python3 -c 'import json, sys; result=json.load(sys.stdin); sys.exit(not result["data"]["result"])'; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then exit 1; fi
+            sleep 2
+          done
+          source .env
+          curl --fail --silent --show-error --user "admin:$SYNCOPS_GRAFANA_PASSWORD" \
+            'http://127.0.0.1:3000/api/dashboards/uid/syncops-overview' \
+            | python3 -c 'import json,sys; doc=json.load(sys.stdin); assert doc["dashboard"]["uid"]=="syncops-overview"'
+          curl --fail --silent --show-error --user "admin:$SYNCOPS_GRAFANA_PASSWORD" --get \
+            'http://127.0.0.1:3000/api/datasources/proxy/uid/syncops-prometheus/api/v1/query' \
+            --data-urlencode 'query=syncops_events{job="syncops-api",status="succeeded"} > 0' \
+            | python3 -c 'import json,sys; assert json.load(sys.stdin)["data"]["result"]'
+          curl --fail --silent --show-error 'http://127.0.0.1:9093/-/ready' >/dev/null
+      - name: Verify worker alert firing and resolution in the isolated lab
+        shell: bash
+        run: |
+          heartbeat_fresh() {
+            curl --fail --silent --show-error --get 'http://127.0.0.1:9090/api/v1/query' \
+              --data-urlencode 'query=time() - syncops_worker_heartbeat_timestamp_seconds{job="syncops-api"} < 45' \
+              | python3 -c 'import json,sys; assert json.load(sys.stdin)["data"]["result"]'
+          }
+          worker_alert_is() {
+            curl --fail --silent --show-error 'http://127.0.0.1:9093/api/v2/alerts' \
+              | python3 -c 'import json,sys; active=any(a["labels"].get("alertname")=="SyncOpsWorkerHeartbeatStale" and a["status"]["state"]=="active" for a in json.load(sys.stdin)); sys.exit(active != (sys.argv[1]=="active"))' "$1"
+          }
+          heartbeat_fresh
+          worker_alert_is clear
+          docker compose stop worker
+          firing=false
+          for attempt in {1..28}; do
+            if worker_alert_is active; then
+              echo 'Alertmanager received the stale worker alert.'
+              firing=true
+              break
+            fi
+            sleep 5
+          done
+          test "$firing" = true
+          docker compose start worker
+          for attempt in {1..20}; do
+            if heartbeat_fresh && worker_alert_is clear; then
+              echo 'Worker heartbeat recovered and the alert resolved.'
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 1
+      - name: Show container state
+        if: failure()
+        run: docker compose ps -a
+      - name: Stop the isolated lab
+        if: always()
+        run: docker compose down --volumes

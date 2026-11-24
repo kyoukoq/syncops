@@ -1,0 +1,29 @@
+groups:
+  - name: syncops-availability
+    rules:
+      - alert: SyncOpsApiScrapeFailed
+        expr: up{job="syncops-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Prometheus cannot scrape the SyncOps API
+          description: Check the API process, database connection and metrics endpoint.
+      - alert: SyncOpsWorkerHeartbeatStale
+        expr: |
+          (time() - syncops_worker_heartbeat_timestamp_seconds{job="syncops-api"} > 45)
+          and on (instance, job) (up{job="syncops-api"} == 1)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: The SyncOps worker heartbeat is stale
+          description: Check the worker process, database connection and active delivery attempts.
+      - alert: SyncOpsDeadLettersPresent
+        expr: syncops_events{job="syncops-api",status="dead_letter"} > 0
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: SyncOps events are waiting in the dead-letter queue
+          description: Inspect the event and attempt history before requesting replay.

@@ -1,0 +1,65 @@
+rule_files:
+  - syncops-alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="api:8000",job="syncops-api"}'
+        values: '0+0x5'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: SyncOpsApiScrapeFailed
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: SyncOpsApiScrapeFailed
+        exp_alerts:
+          - exp_labels:
+              instance: api:8000
+              job: syncops-api
+              severity: critical
+            exp_annotations:
+              summary: Prometheus cannot scrape the SyncOps API
+              description: Check the API process, database connection and metrics endpoint.
+
+  - interval: 15s
+    input_series:
+      - series: 'up{instance="api:8000",job="syncops-api"}'
+        values: '1+0x8'
+      - series: 'syncops_worker_heartbeat_timestamp_seconds{instance="api:8000",job="syncops-api"}'
+        values: '1+0x8'
+    alert_rule_test:
+      - eval_time: 1m45s
+        alertname: SyncOpsWorkerHeartbeatStale
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: SyncOpsWorkerHeartbeatStale
+        exp_alerts:
+          - exp_labels:
+              instance: api:8000
+              job: syncops-api
+              severity: critical
+            exp_annotations:
+              summary: The SyncOps worker heartbeat is stale
+              description: Check the worker process, database connection and active delivery attempts.
+
+  - interval: 15s
+    input_series:
+      - series: 'syncops_events{instance="api:8000",job="syncops-api",status="dead_letter"}'
+        values: '0 1 1 1 0'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: SyncOpsDeadLettersPresent
+        exp_alerts:
+          - exp_labels:
+              instance: api:8000
+              job: syncops-api
+              severity: warning
+              status: dead_letter
+            exp_annotations:
+              summary: SyncOps events are waiting in the dead-letter queue
+              description: Inspect the event and attempt history before requesting replay.
+      - eval_time: 1m
+        alertname: SyncOpsDeadLettersPresent
+        exp_alerts: []
