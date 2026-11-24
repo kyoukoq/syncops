@@ -2,41 +2,29 @@
 
 ## Current milestone
 
-The [v0.1.0 MVP preview](https://github.com/kyoukoq/syncops/releases/tag/v0.1.0) is published. Windows delivery scenarios A–G and the PostgreSQL Compose and Chromium workflow passed. The optional observability profile has since been merged into `main` after a separate hosted verification.
+The [v0.1.0 MVP preview](https://github.com/kyoukoq/syncops/releases/tag/v0.1.0) remains the published release. Advanced DevOps Lab changes are being integrated through verified public pull requests. Native Windows operation still uses SQLite. Hosted fixtures use PostgreSQL with synthetic data exclusively.
 
-## Architecture
+## Verified vertical slices
 
-React/Vite console, FastAPI control plane, SQLAlchemy persistence, Alembic migrations, SQL-backed worker, and mock HTTP adapters representing CRM, ERP and TMS. SQLite WAL is the native Windows profile. PostgreSQL is the Compose profile. See [ADR 0001](docs/adr/0001-core-architecture.md) and the [API contract](docs/api-contract.md).
-
-## Environment evidence
-
-- Verified Git 2.56, PowerShell 7.6, Node.js 24 and npm 11, VS Code command, and a bundled Python 3.12 executable.
-- GitHub and Git Credential Manager confirmed `kyoukoq`. GitHub CLI was absent. `main` contains the verified MVP and the optional observability overlay in the [public SyncOps repository](https://github.com/kyoukoq/syncops).
-- Docker, Helm and Kubernetes tooling were absent from PATH. The WSL launcher reported that WSL was not installed.
-- Verified native agent execution and functional Git worktrees. Parsed eight project TOML files, including seven unique custom roles. Project role registration in a newly trusted session is pending.
-
-## Verification
-
-| Check | Status | Evidence |
+| Gate | Status | Evidence |
 | --- | --- | --- |
-| Native Windows launch | Passed | `pwsh -File scripts/Start-SyncOps.ps1 -SkipInstall` started API, worker, mock and Vite with local bindings |
-| SQLite migration and API/worker tests | Passed | Alembic upgrade/check/downgrade/re-upgrade, Ruff lint and format, `pip check`, and 14 pytest cases |
-| Live pipeline smoke | Passed | Real sign-in, accepted event, idempotent duplicate, mock HTTP delivery and attempt history via the Vite API proxy |
-| Independent native scenarios A–F | Passed | `python e2e/native_delivery.py --base-url http://127.0.0.1:8000` verified 503 recovery, minimum 2.000 s Retry-After (observed 2.022 s), immediate 422 DLQ, persistent timeout exhaustion, audited replay, eight concurrent duplicate submissions, role gates and session revocation |
-| Independent worker-crash drill G | Passed | QA terminated an isolated child worker during HTTP delivery. Its replacement reclaimed the expired lease and completed the event, preserving interrupted and succeeded attempts and one mock business effect |
-| Native snapshot and restore | Passed | Restored a live SQLite snapshot to a new path. Event, attempt and mock-operation counts matched (2 each) |
-| Frontend types and build | Passed | `npm --prefix frontend run build` compiled TypeScript and Vite production assets |
-| Windows browser QA | Blocked | Browser origin approval declined access to `127.0.0.1:5173` |
-| Compose, PostgreSQL and hosted Chromium | Passed in hosted CI | The [MVP workflow](https://github.com/kyoukoq/syncops/actions/runs/45506797414) built Compose, verified PostgreSQL delivery, and passed Chromium sign-in, dead-letter search, replay, preserved attempts, audit, theme, mobile navigation and sign-out |
-| Prometheus, Grafana OSS and Alertmanager | Passed in hosted CI | The [observability workflow](https://github.com/kyoukoq/syncops/actions/runs/45507954694) verified rules, real delivery metrics through Prometheus and Grafana, dashboard provisioning and worker alert firing and resolution |
-| Kubernetes, GitOps and centralized logs | Not Run | Tracked in the Advanced DevOps Lab milestone |
+| Native operation and demo data | Passed | Windows API readiness returned HTTP 200. Running `scripts/seed_demo.py` twice returned the same nine correlation IDs across three dedicated integrations, with seven succeeded and two dead-letter events. |
+| Repository-scoped Codex configuration | Passed for effective configuration and all seven roles | Local app-server `config/read` returned the project layer and an effective cap of three. ChatGPT-authenticated CLI runs started all seven custom names and received verification markers. The additional six ran with at most two nested agents active. |
+| Core Compose and Chromium | Passed in hosted CI | The release fixture rebuilt with the refreshed runtime images and passed its API and browser smoke checks. [Core regression](https://github.com/kyoukoq/syncops/actions/runs/45511484017) |
+| Supply-chain scanning and SBOM | Passed in hosted CI | Gitleaks reported no leaks, the runtime UID checks passed, and both CycloneDX SBOMs were generated. Trivy reported zero high or critical frontend findings and 53 backend findings with no fixed version in the advisory database. The gate currently fails high or critical findings with a published fix. [Container assurance](https://github.com/kyoukoq/syncops/actions/runs/45511484050) |
+| GHCR candidate publishing and attestations | Passed | Hosted CI pushed versioned image candidates by digest and generated provenance and CycloneDX SBOM attestations. Anonymous manifest requests returned HTTP 200 for both digests. [Publication and attestation run](https://github.com/kyoukoq/syncops/actions/runs/45512578781) |
+| Worker log correlation | Passed in hosted CI | Alloy collected actual worker stdout. Grafana queried Loki for the same correlation ID and found both `retry_scheduled` and `succeeded` without the payload marker. [Central log integration](https://github.com/kyoukoq/syncops/actions/runs/45511230280) |
+| PostgreSQL crash, load and restore | Passed in hosted CI | Worker `SIGKILL` after committed effect left one mock effect after lease recovery. Two workers split 24 unique events from 48 requests evenly with no duplicate business effects. Queue p95 2.194 s, terminal p95 2.453 s, observed restore 12.2 s. The matching archive excluded one acknowledged post-backup record, as expected. [Reliability run](https://github.com/kyoukoq/syncops/actions/runs/45511422619) |
 
-## Defensive review
+| Kubernetes and Helm | Passed in hosted kind | Staging and production-lab used separate credentials and volumes. CI scaled workers from two to three, preserved the PostgreSQL PVC through pod replacement, and verified restored service after a failed Helm rollout. [Kubernetes lab](https://github.com/kyoukoq/syncops/actions/runs/45512478105) |
 
-Scoped event audit to admins, limited smoke-test authentication to loopback with redirects disabled, created Compose secrets with POSIX mode `0600`, and increased API memory headroom for concurrent scrypt computations. Local secret files and SQLite artifacts are ignored by Git.
+The load and recovery measurements represent one disposable runner with a small synthetic dataset. They do not establish a production service-level claim.
 
-## Remaining gates
+## Active or blocked gates
 
-- Run Docker and the advanced lab on a suitable host. The current Windows machine has no Docker or WSL installation.
-- Review the primary console visually and capture product screenshots. The Windows browser origin remained blocked in this session.
-- Verify custom Codex role registration in a new trusted session, deploy Helm with Argo CD, and run the remaining incident, rollback, scanning, SBOM and database recovery checks in the [Advanced DevOps Lab milestone](https://github.com/kyoukoq/syncops/milestone/1).
+- **Windows virtualization** — Firmware virtualization and the hypervisor are enabled. Docker Engine, Compose runtime, Kubernetes and Argo CD on this machine are blocked on WSL installation and first-time Ubuntu setup. Follow the [Windows host runbook](docs/runbooks/windows-container-host.md).
+- **Windows browser visual acceptance** — The Codex origin policy blocks `http://127.0.0.1:5173`. Hosted fixture evidence is separate from Windows visual verification.
+- **Advanced verification** — GitOps and extended console acceptance have individual workflow gates. Follow the [Advanced DevOps Lab milestone](https://github.com/kyoukoq/syncops/milestone/1).
+- **Release** — v0.2.0 is pending the intended scope and deployment verification. GHCR candidate tags are distinct from product releases.
+
+See the [acceptance report](docs/verification.md), [Windows activation runbook](docs/runbooks/windows-container-host.md), and [portfolio demonstration](docs/advanced-lab-demo.md).

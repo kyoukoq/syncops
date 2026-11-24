@@ -13,9 +13,9 @@ The native Windows lab used a loopback API, a local SQLite database and syntheti
 | E | Passed | A persistent timeout exhausted both attempts. Operator replay retained the event and correlation IDs, preserved prior attempts, completed delivery and recorded an audit entry. The viewer replay request returned 403. |
 | F | Passed | Eight concurrent submissions with the same key and body returned one event ID and produced one mock effect. Reusing the key with changed content returned 409. |
 | G | Passed | In a separate native drill, QA terminated an isolated child worker during HTTP delivery. The destination committed before the replacement acquired the expired lease. The replacement completed the event with interrupted and succeeded attempts and one persisted mock effect. |
-| H | Not run | Deliberately failed deployment and rollback await an isolated deployment drill. |
-| I | Partially verified | Native API and hosted Chromium checks exercised event investigation and replay audit. A separate hosted monitor checked delivery metrics and worker recovery alerts. Centralized log correlation remains open. |
-| J | Partially verified | A SQLite snapshot restored to a new isolated path with matching counts of two events, two attempts and two mock operations. A complete post-loss service recovery drill and PostgreSQL restore await verification. |
+| H | Passed in hosted Helm drill | A deliberately unavailable frontend image failed the staging upgrade. Helm restored the prior image and a new event delivered successfully. GitOps-specific revert is a separate gate. [Hosted Kubernetes](https://github.com/kyoukoq/syncops/actions/runs/45512478105) |
+| I | Partially verified | Native and hosted browser checks exercised event investigation and replay audit. A hosted real delivery checked both correlated worker records through Grafana and Loki. Windows UI validation remains blocked. [Central log integration](https://github.com/kyoukoq/syncops/actions/runs/45511230280) |
+| J | Passed in hosted PostgreSQL and Windows snapshot drill | A SQLite snapshot restored to a new isolated path with matching counts of two events, two attempts and two mock operations. A hosted disposable PostgreSQL drill restored matching fingerprints and a working API in 12.2 seconds. The one unbacked acknowledged record was absent after restore. [PostgreSQL recovery evidence](https://github.com/kyoukoq/syncops/actions/runs/45511422619) |
 
 ## Additional checks
 
