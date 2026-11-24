@@ -1,0 +1,114 @@
+name: Container assurance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/supply-chain.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deploy/**'
+      - 'scripts/container-assurance.sh'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/supply-chain.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deploy/**'
+      - 'scripts/container-assurance.sh'
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assurance-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
+jobs:
+  verify:
+    if: toJSON(github.event.repository.private) == 'false' && github.event_name != 'release'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: bash scripts/container-assurance.sh
+
+  publish:
+    if: toJSON(github.event.repository.private) == 'false' && github.event_name == 'release' && github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify stable release version and ancestry
+        shell: bash
+        run: |
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+      - name: Build and verify the images before publication
+        run: SYNCOPS_IMAGE_VERSION="$GITHUB_REF_NAME" bash scripts/container-assurance.sh
+      - name: Publish the verified local images
+        id: publish
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          unset GHCR_TOKEN
+          for component in backend frontend; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
+            if docker manifest inspect "$image:$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              echo "Immutable release tag already exists for $component" >&2
+              exit 1
+            fi
+          done
+          for component in backend frontend; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
+            versioned="$image:$GITHUB_REF_NAME"
+            docker tag "syncops/$component:assurance" "$versioned"
+            push_log=$(docker push "$versioned")
+            printf '%s\n' "$push_log"
+            digest=$(sed -nE 's/.* digest: (sha256:[0-9a-f]{64}) size: [0-9]+.*/\1/p' <<< "$push_log")
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            docker manifest inspect "$image@$digest" >/dev/null
+            printf '%s_name=%s\n%s_digest=%s\n' "$component" "$image" "$component" "$digest" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$image@$digest" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.publish.outputs.backend_name }}
+          subject-digest: ${{ steps.publish.outputs.backend_digest }}
+          push-to-registry: true
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.publish.outputs.frontend_name }}
+          subject-digest: ${{ steps.publish.outputs.frontend_digest }}
+          push-to-registry: true
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.publish.outputs.backend_name }}
+          subject-digest: ${{ steps.publish.outputs.backend_digest }}
+          sbom-path: ${{ runner.temp }}/syncops-assurance/backend.cdx.json
+          push-to-registry: true
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ steps.publish.outputs.frontend_name }}
+          subject-digest: ${{ steps.publish.outputs.frontend_digest }}
+          sbom-path: ${{ runner.temp }}/syncops-assurance/frontend.cdx.json
+          push-to-registry: true
+      - name: Close the registry session
+        if: always()
+        run: docker logout ghcr.io
