@@ -1,0 +1,17 @@
+loki.source.syslog "syncops_worker" {
+  listener {
+    address        = "0.0.0.0:1514"
+    protocol       = "udp"
+    syslog_format  = "rfc5424"
+    udp_queue_size = 128
+    labels         = { job = "syncops-worker" }
+  }
+
+  forward_to = [loki.write.syncops.receiver]
+}
+
+loki.write "syncops" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
