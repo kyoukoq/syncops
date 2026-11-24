@@ -1,0 +1,86 @@
+name: GitOps lab
+
+on:
+  pull_request:
+    paths:
+      - 'charts/**'
+      - 'deploy/gitops/**'
+      - 'deploy/kubernetes/Initialize-Secrets.ps1'
+      - '.github/workflows/gitops.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'charts/**'
+      - 'deploy/gitops/**'
+      - 'deploy/kubernetes/Initialize-Secrets.ps1'
+      - '.github/workflows/gitops.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitops-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  argocd:
+    if: toJSON(github.event.repository.private) == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      KIND_VERSION: v0.31.0
+      KIND_SHA256: eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
+      KUBECTL_VERSION: v1.35.0
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install versioned, checksum-verified tools
+        run: |
+          cd "$RUNNER_TEMP"
+          kubectl_url="https://dl.k8s.io/release/$KUBECTL_VERSION/bin/linux/amd64"
+          curl --proto '=https' -fsSLO --retry 3 "https://github.com/kubernetes-sigs/kind/releases/download/$KIND_VERSION/kind-linux-amd64"
+          printf '%s  %s\n' "$KIND_SHA256" kind-linux-amd64 | sha256sum -c -
+          curl --proto '=https' -fsSLO --retry 3 "$kubectl_url/kubectl"
+          curl --proto '=https' -fsSLO --retry 3 "$kubectl_url/kubectl.sha256"
+          printf '%s  %s\n' "$(cat kubectl.sha256)" kubectl | sha256sum -c -
+          install -D -m 0755 kind-linux-amd64 "$RUNNER_TEMP/syncops-bin/kind"
+          install -m 0755 kubectl "$RUNNER_TEMP/syncops-bin"
+          echo "$RUNNER_TEMP/syncops-bin" >> "$GITHUB_PATH"
+      - name: Start the private local registry and install Argo CD
+        run: bash deploy/gitops/bootstrap-kind.sh syncops-gitops-ci
+      - name: Build and publish disposable images to the loopback registry
+        run: |
+          registry=localhost:5001/syncops
+          docker build -t "$registry/backend:baseline" -f deploy/backend.Dockerfile backend
+          docker build --build-context config=deploy -t "$registry/frontend:baseline" -f deploy/frontend.Dockerfile frontend
+          docker push "$registry/backend:baseline"
+          docker push "$registry/frontend:baseline"
+          printf 'FROM %s/frontend:baseline\nLABEL org.syncops.lab.candidate=true\n' "$registry" \
+            | docker build -t "$registry/frontend:candidate" -
+          docker push "$registry/frontend:candidate"
+          docker build -t syncops/git-fixture:local -f deploy/gitops/git-fixture.Dockerfile deploy/gitops
+          docker pull postgres:17-bookworm
+          kind load docker-image --name syncops-gitops-ci syncops/git-fixture:local postgres:17-bookworm
+      - name: Start the isolated Git source
+        run: |
+          kubectl apply -f deploy/gitops/git-fixture.yaml
+          kubectl -n argocd rollout status deployment/git-fixture --timeout=120s
+      - name: Verify reconciliation, promotion, unhealthy revision and Git rollback
+        run: bash deploy/gitops/verify-argocd.sh
+      - name: Show application and workload state on failure
+        if: failure()
+        run: |
+          kubectl -n argocd get applications,pods -o wide || true
+          kubectl -n argocd logs deployment/git-fixture --tail=25 || true
+          kubectl -n argocd logs statefulset/argocd-application-controller --tail=30 || true
+          for namespace in syncops-staging syncops-production-lab; do
+            kubectl -n "$namespace" get pods,jobs,pvc,deploy -o wide || true
+            kubectl -n "$namespace" get events --sort-by=.lastTimestamp | tail -25 || true
+          done
+      - name: Stop the disposable cluster and registry
+        if: always()
+        run: |
+          docker rm -f syncops-registry-syncops-gitops-ci || true
+          kind delete cluster --name syncops-gitops-ci

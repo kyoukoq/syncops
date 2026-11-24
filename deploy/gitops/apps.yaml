@@ -1,0 +1,83 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: syncops-staging
+  namespace: argocd
+spec:
+  description: SyncOps staging on the dedicated local cluster
+  sourceRepos: [https://github.com/kyoukoq/syncops.git]
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: syncops-staging
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - {group: "", kind: ConfigMap}
+    - {group: "", kind: Service}
+    - {group: apps, kind: Deployment}
+    - {group: apps, kind: StatefulSet}
+    - {group: batch, kind: Job}
+    - {group: networking.k8s.io, kind: NetworkPolicy}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: syncops-production-lab
+  namespace: argocd
+spec:
+  description: SyncOps production lab on the dedicated local cluster
+  sourceRepos: [https://github.com/kyoukoq/syncops.git]
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: syncops-production-lab
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - {group: "", kind: ConfigMap}
+    - {group: "", kind: Service}
+    - {group: apps, kind: Deployment}
+    - {group: apps, kind: StatefulSet}
+    - {group: batch, kind: Job}
+    - {group: networking.k8s.io, kind: NetworkPolicy}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: syncops-staging
+  namespace: argocd
+spec:
+  project: syncops-staging
+  source:
+    repoURL: https://github.com/kyoukoq/syncops.git
+    targetRevision: refs/heads/syncops-lab-staging
+    path: charts/syncops
+    helm:
+      valueFiles: [../../deploy/gitops/release-values.json]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: syncops-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions: [PruneLast=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: syncops-production-lab
+  namespace: argocd
+spec:
+  project: syncops-production-lab
+  source:
+    repoURL: https://github.com/kyoukoq/syncops.git
+    targetRevision: refs/heads/syncops-lab-production
+    path: charts/syncops
+    helm:
+      valueFiles: [../../deploy/gitops/release-values.json]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: syncops-production-lab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions: [PruneLast=true]
