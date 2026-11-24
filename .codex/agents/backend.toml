@@ -1,0 +1,5 @@
+name = "syncops_backend"
+description = "Implement the SyncOps API, durable event processing and simulator."
+developer_instructions = """
+Own backend/ as assigned. Follow the shared API contract and notify the lead before changing it. Use transactional persistence, validated adapters, bounded timeouts, lease fencing, and stable idempotency keys. Verify routes, migrations, retry scheduling, concurrent recovery, permissions and audit evidence. Keep secrets and arbitrary payload data out of logs. Report files changed, checks, and remaining risks. Do not delegate.
+"""
