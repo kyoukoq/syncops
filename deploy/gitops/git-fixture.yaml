@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: git-fixture
+  namespace: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: git-fixture}
+  template:
+    metadata:
+      labels: {app: git-fixture}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: git
+          image: syncops/git-fixture:local
+          imagePullPolicy: Never
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          ports:
+            - {name: http, containerPort: 8000}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 2
+          resources:
+            requests: {cpu: 25m, memory: 32Mi}
+            limits: {cpu: 250m, memory: 128Mi}
+          volumeMounts:
+            - {name: repos, mountPath: /repos}
+      volumes:
+        - name: repos
+          emptyDir: {sizeLimit: 16Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-fixture
+  namespace: argocd
+spec:
+  type: ClusterIP
+  selector: {app: git-fixture}
+  ports:
+    - {port: 8000, targetPort: http}
