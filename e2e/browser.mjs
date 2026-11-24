@@ -165,7 +165,7 @@ async function configureIntegration(page, integration, enabled) {
 
 async function verifyDisabledIntegration(page, token, integration) {
   await openPage(page, 'Failure Simulation', 'Failure simulation');
-  const routes = page.getByLabel('Integration', { exact: true });
+  const routes = page.locator('select[name="integration_id"]');
   await routes.waitFor();
   assert.equal(await routes.locator('option').filter({ hasText: integrationName }).count(), 0,
     'Disabled routes are excluded from the form');
@@ -191,7 +191,7 @@ function eventData(integration, type, record, scenario = 'success') {
 
 async function simulate(page, data, key = randomUUID()) {
   await openPage(page, 'Failure Simulation', 'Failure simulation');
-  await page.getByLabel('Integration', { exact: true }).selectOption(data.integration_id);
+  await page.locator('select[name="integration_id"]').selectOption(data.integration_id);
   await page.getByLabel('Event type').selectOption(data.event_type);
   await page.getByLabel('Delivery scenario').selectOption(data.scenario);
   await page.getByLabel('Synthetic payload').fill(JSON.stringify(data.payload, null, 2));
