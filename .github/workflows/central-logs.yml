@@ -1,0 +1,54 @@
+name: Central log integration
+
+on:
+  pull_request:
+    paths:
+      - 'compose.logs.yaml'
+      - 'deploy/logs/**'
+      - 'backend/syncops/worker.py'
+      - 'scripts/logs_smoke.py'
+      - '.github/workflows/central-logs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-logs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  log-pipeline:
+    if: toJSON(github.event.repository.private) == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      COMPOSE_FILE: compose.yaml:compose.observability.yaml:compose.logs.yaml
+      COMPOSE_PROJECT_NAME: syncops-logs-ci-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Generate isolated lab secrets
+        shell: pwsh
+        run: ./scripts/Initialize-Compose.ps1
+      - name: Start the lab
+        run: |
+          password=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          printf 'SYNCOPS_GRAFANA_PASSWORD=%s\n' "$password" >> .env
+          docker compose config --quiet
+          docker compose up -d --build --wait --wait-timeout 150
+      - name: Trace a real failed and recovered delivery through Grafana and Loki
+        shell: bash
+        run: |
+          source .env
+          echo "::add-mask::$SYNCOPS_ADMIN_PASSWORD"
+          export SYNCOPS_ADMIN_PASSWORD SYNCOPS_GRAFANA_PASSWORD
+          python3 scripts/logs_smoke.py
+      - name: Report service state
+        if: failure()
+        run: docker compose ps -a
+      - name: Remove only this runner's lab
+        if: always()
+        run: docker compose down --volumes

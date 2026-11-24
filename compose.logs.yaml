@@ -1,0 +1,70 @@
+x-local-logging: &local-logging
+  driver: local
+  options:
+    max-size: 10m
+    max-file: "3"
+
+services:
+  worker:
+    depends_on:
+      alloy:
+        condition: service_started
+    logging:
+      driver: syslog
+      options:
+        syslog-address: udp://127.0.0.1:1514
+        syslog-format: rfc5424micro
+        tag: syncops-worker
+        mode: non-blocking
+        max-buffer-size: 1m
+        cache-max-size: 10m
+        cache-max-file: "3"
+
+  loki:
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
+    command: [-config.file=/etc/loki/syncops.yml]
+    volumes:
+      - ./deploy/logs/loki.yml:/etc/loki/syncops.yml:ro
+      - loki_data:/loki
+    networks: [log_pipeline, monitoring_ui]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    logging: *local-logging
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
+    user: "65534:65534"
+    command: [run, --storage.path=/tmp/alloy, --disable-reporting, /etc/alloy/syncops.alloy]
+    volumes:
+      - ./deploy/logs/worker.alloy:/etc/alloy/syncops.alloy:ro
+    ports:
+      - 127.0.0.1:1514:1514/udp
+    networks: [log_pipeline]
+    depends_on:
+      loki:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    logging: *local-logging
+    restart: unless-stopped
+
+  grafana:
+    volumes:
+      - ./deploy/logs/datasource.yml:/etc/grafana/provisioning/datasources/syncops-loki.yml:ro
+      - ./deploy/logs/worker-incidents.json:/etc/grafana/syncops-dashboards/worker-incidents.json:ro
+
+networks:
+  log_pipeline:
+
+volumes:
+  loki_data:
