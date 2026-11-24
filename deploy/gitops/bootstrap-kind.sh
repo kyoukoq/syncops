@@ -19,7 +19,20 @@ curl --noproxy '*' --retry 15 --retry-connrefused --retry-delay 1 -fsS --max-tim
 
 kubectl --context "$context" create namespace argocd
 kubectl --context "$context" -n argocd apply --server-side -f "$argocd_manifest"
-kubectl --context "$context" wait --for=condition=Established crd/applications.argoproj.io crd/appprojects.argoproj.io --timeout=90s
+for crd in applications.argoproj.io appprojects.argoproj.io; do
+    for _ in {1..45}; do
+        established=$(kubectl --context "$context" get crd "$crd" \
+            -o 'jsonpath={.status.conditions[?(@.type=="Established")].status}')
+        if [[ "$established" == True ]]; then
+            break
+        fi
+        sleep 2
+    done
+    if [[ "$established" != True ]]; then
+        echo "CRD $crd did not become Established within 90 seconds" >&2
+        exit 1
+    fi
+done
 kubectl --context "$context" -n argocd rollout status deployment/argocd-repo-server --timeout=180s
 kubectl --context "$context" -n argocd rollout status statefulset/argocd-application-controller --timeout=180s
 
