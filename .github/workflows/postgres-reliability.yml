@@ -1,0 +1,47 @@
+name: PostgreSQL reliability
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/postgres-reliability.yml'
+      - 'backend/**'
+      - 'deploy/backend.Dockerfile*'
+      - 'e2e/native_delivery.py'
+      - 'ops/postgres_reliability/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/postgres-reliability.yml'
+      - 'backend/**'
+      - 'deploy/backend.Dockerfile*'
+      - 'e2e/native_delivery.py'
+      - 'ops/postgres_reliability/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-reliability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drill:
+    if: toJSON(github.event.repository.private) == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify isolation and evidence helpers
+        run: python3 -m unittest discover -s ops/postgres_reliability -p 'test_*.py'
+      - name: Verify PostgreSQL recovery and two-worker delivery
+        run: python3 -m ops.postgres_reliability.run --evidence "$RUNNER_TEMP/syncops-reliability.json"
+      - name: Record recovery and delivery evidence
+        run: |
+          {
+            echo '## PostgreSQL reliability acceptance'
+            echo
+            sed 's/^/    /' "$RUNNER_TEMP/syncops-reliability.json"
+          } >> "$GITHUB_STEP_SUMMARY"
