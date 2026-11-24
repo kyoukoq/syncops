@@ -23,3 +23,13 @@ The repository stores seven custom role definitions under `.codex/agents/`. Nati
 Publish only intended tracked files from a verified commit. Run API/worker tests, lint, type checking, production build, real local delivery and independent review before requesting merge. Record separate outcomes for native SQLite, Compose PostgreSQL, live browser and deployment targets. Avoid deploying local self-hosted CI for public pull requests.
 
 Public GitHub repositories and standard public GitHub-hosted runners fit the lab's $0 budget. Public container publication requires confirming package visibility and free Container registry terms. Avoid paid runner classes and long-lived CI artifacts. See [GitHub Free](https://docs.github.com/en/repositories/creating-and-managing-repositories/about-repositories), [Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) and [Packages billing](https://docs.github.com/en/billing/concepts/product-billing/github-packages).
+
+## Advanced DevOps Lab assignments
+
+- The lead reviewed upstream service terms, coordinated worktrees and GitHub checks, refreshed container runtime images after Trivy findings, implemented GHCR candidate controls and centralized logging, and seeded the native demonstration through the API.
+- The backend subagent implemented and checked the isolated PostgreSQL recovery and load fixture in `lab/postgres-reliability`. The lead ran its hosted workflow and integrated the verified branch.
+- The architect subagent implemented the Helm and Argo CD slices in `lab/kubernetes` and `lab/gitops`. The lead owns CI fixups, checkpoint verification and integration.
+- The frontend subagent expanded hosted Chromium acceptance and optional export of bounded synthetic visual evidence in `lab/browser-acceptance`.
+- The initial Platform and Security follow-up assignments hit the included Codex usage limit. The lead reassigned Kubernetes and completed the supply-chain lane directly. The failed starts did not create implementation work.
+
+The local app-server confirmed the project config layer and its concurrency limit of three. A native custom `syncops_architect` invocation returned its expected verification marker under the ChatGPT account. Ephemeral CLI testing encountered a thread-store limitation. The named executions succeeded in regular local CLI sessions. The six other exact names also returned `ROLE_OK` in a bounded run. The diagnostic CLI PowerShell startup probes were blocked by Windows package identity restrictions. The lead performed the repository inspection directly.

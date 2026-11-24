@@ -74,6 +74,15 @@ GitHub CI checks Python and TypeScript and runs the Compose smoke path. Native w
 
 If the native launcher exits, inspect `.syncops/logs/`. Ports 5173, 8000 and 8001 must be free for the local profile. If the UI loads but the delivery is pending, check the worker state and the newest attempt. If sign-in fails after editing local credentials, restore the initialization credentials for the existing database. Local accounts are created on initialization.
 
+## Advanced DevOps Lab
+
+- [Windows container host activation](docs/runbooks/windows-container-host.md)
+- [Helm deployment and Kubernetes lab](deploy/kubernetes/README.md)
+- [Central worker log investigation](docs/runbooks/trace-worker-incident.md)
+- [PostgreSQL recovery and reliability drill](ops/postgres_reliability/README.md)
+- [Container supply chain](docs/supply-chain.md)
+- [Portfolio lifecycle walkthrough](docs/advanced-lab-demo.md)
+
 ## Project records
 
 - [Portfolio walkthrough](docs/portfolio.md) and [verification evidence](docs/verification.md)
