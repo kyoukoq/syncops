@@ -3,8 +3,8 @@ set -euo pipefail
 
 context=kind-syncops-ci
 namespace=syncops-staging
-base_url=http://127.0.0.1:18080
 forward_pid=
+forward_log=
 
 kube() {
     kubectl --context "$context" --namespace "$namespace" "$@"
@@ -26,15 +26,34 @@ close_forward() {
         wait "$forward_pid" 2>/dev/null || true
         forward_pid=
     fi
+    if [[ -n "$forward_log" ]]; then
+        rm -f -- "$forward_log"
+        forward_log=
+    fi
 }
 trap close_forward EXIT
 
 smoke() {
-    local password
+    local password port base_url
     password=$(kube get secret syncops-api-auth -o 'jsonpath={.data.admin-password}' | base64 -d)
     echo "::add-mask::$password"
-    kube port-forward --address 127.0.0.1 svc/syncops-web 18080:8080 &
+    forward_log=$(mktemp)
+    kubectl --context "$context" --namespace "$namespace" port-forward \
+        --address 127.0.0.1 svc/syncops-web :8080 >"$forward_log" 2>&1 &
     forward_pid=$!
+    for _ in {1..30}; do
+        port=$(sed -nE 's/^Forwarding from 127[.]0[.]0[.]1:([0-9]+) -> .*/\1/p' "$forward_log")
+        if [[ "$port" =~ ^[0-9]+$ ]]; then
+            break
+        fi
+        if ! kill -0 "$forward_pid" 2>/dev/null; then
+            cat "$forward_log" >&2
+            return 1
+        fi
+        sleep 1
+    done
+    [[ "$port" =~ ^[0-9]+$ ]]
+    base_url="http://127.0.0.1:$port"
     curl --noproxy '*' --retry 15 --retry-delay 1 --retry-connrefused -fsS \
         --max-time 2 "$base_url/healthz"
     SYNCOPS_ADMIN_PASSWORD="$password" python3 scripts/smoke.py --base-url "$base_url"
