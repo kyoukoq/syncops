@@ -33,8 +33,9 @@ Create accepts the configuration fields except `id` and `health`. Integrations s
 `POST /events` creates a real queued event. Optional `Idempotency-Key` header scopes deduplication to its integration. Same key and same request return the original event, while conflicting reuse returns `409`. Event type values for the demo are `company.created`, `contact.created`, `customer.updated`, `account.synced`, `order.created`, and `shipment.updated`.
 
 ```ts
-type Scenario = 'success' | 'http_400' | 'http_401' | 'http_429' | 'http_500'
-  | 'http_503' | 'timeout' | 'temporary_outage' | 'invalid_response';
+type Scenario = 'success' | 'http_400' | 'http_401' | 'http_403' | 'http_404'
+  | 'http_409' | 'http_422' | 'http_429' | 'http_500' | 'http_502' | 'http_503'
+  | 'http_504' | 'timeout' | 'temporary_outage' | 'invalid_response';
 type EventInput = {
   integration_id: string; event_type: string; payload: Record<string, unknown>;
   scenario?: Scenario; failure_count?: number; latency_ms?: number;
@@ -53,6 +54,8 @@ type Attempt = {
 ```
 
 `failure_count` specifies how many deliveries receive the selected failure before normal processing, with `0` meaning persistent. Temporary outage defaults to one failed delivery. `latency_ms` applies to actual mock HTTP responses. An absent scenario means success.
+
+New events persist an integration configuration snapshot. Disabling an integration blocks new submissions and replay while already-queued deliveries can finish under their accepted settings.
 
 `GET /events?status=dead_letter&search=company&integration_id=...&limit=25&offset=0&sort=newest` returns `{items: Event[], total: number}`. Filter values are optional and `sort` supports `newest` and `oldest`.
 

@@ -1,0 +1,136 @@
+name: syncops
+
+x-backend: &backend
+  image: syncops/backend:local
+  build:
+    context: ./backend
+    dockerfile: ../deploy/backend.Dockerfile
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [private]
+  mem_limit: 256m
+  cpus: 1
+  restart: unless-stopped
+
+x-database-env: &database-env
+  SYNCOPS_DATABASE_URL: postgresql+psycopg://syncops@db:5432/syncops
+  PGPASSWORD: ${SYNCOPS_DB_PASSWORD:?Generate local settings first}
+
+services:
+  db:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_DB: syncops
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${SYNCOPS_DB_ADMIN_PASSWORD:?Generate local settings first}
+      SYNCOPS_DB_PASSWORD: ${SYNCOPS_DB_PASSWORD:?Generate local settings first}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/01-syncops.sql:ro
+    networks: [private]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, syncops, -d, syncops]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
+    cpus: 1
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: [python, -m, alembic, upgrade, head]
+    environment: *database-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  mock:
+    <<: *backend
+    command: [python, -m, uvicorn, "syncops.mock:app", --host, 0.0.0.0, --port, "8001", --no-access-log]
+    environment:
+      <<: *database-env
+      SYNCOPS_MOCK_TOKEN: ${SYNCOPS_MOCK_TOKEN:?Generate local settings first}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/readyz', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    <<: *backend
+    mem_limit: 512m
+    environment:
+      <<: *database-env
+      SYNCOPS_ADMIN_PASSWORD: ${SYNCOPS_ADMIN_PASSWORD:?Generate local settings first}
+      SYNCOPS_OPERATOR_PASSWORD: ${SYNCOPS_OPERATOR_PASSWORD:-}
+      SYNCOPS_VIEWER_PASSWORD: ${SYNCOPS_VIEWER_PASSWORD:-}
+      SYNCOPS_WEBHOOK_SECRET: ${SYNCOPS_WEBHOOK_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/readyz', timeout=2).close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  worker:
+    <<: *backend
+    command: [python, -m, syncops.worker]
+    environment:
+      <<: *database-env
+      SYNCOPS_MOCK_BASE_URL: http://mock:8001
+      SYNCOPS_MOCK_TOKEN: ${SYNCOPS_MOCK_TOKEN:?Generate local settings first}
+    depends_on:
+      api:
+        condition: service_healthy
+      mock:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -m, syncops.worker, --check]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    stop_grace_period: 45s
+
+  web:
+    image: syncops/frontend:local
+    build:
+      context: ./frontend
+      dockerfile: ../deploy/frontend.Dockerfile
+      additional_contexts:
+        config: ./deploy
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:${SYNCOPS_WEB_PORT:-8080}:8080
+    networks: [edge, private]
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    mem_limit: 128m
+    cpus: 0.5
+    restart: unless-stopped
+
+networks:
+  edge:
+  private:
+    internal: true
+
+volumes:
+  db_data:
