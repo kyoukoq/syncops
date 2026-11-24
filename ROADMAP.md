@@ -9,7 +9,7 @@
 | 04 | Containerization | Non-root images, PostgreSQL, probes and Compose smoke run | Passed in hosted CI |
 | 05 | Web operations console | Browser-tested sign-in, simulation, investigation and replay | Passed in hosted Chromium |
 | 06 | CI/CD | Verified public hosted checks, scans, SBOM and signed-off release workflow | In progress |
-| 07 | Observability | Real scraped metrics, centralized logs and actionable alert verification | In progress |
+| 07 | Observability | Real scraped metrics, centralized logs and actionable alert verification | Metrics, dashboard and alert recovery passed in hosted CI. Centralized logs pending |
 | 08 | Kubernetes | Locally verified Helm charts with probes, persistent storage and resource limits | Planned |
 | 09 | GitOps | Verified Argo CD reconciliation, environment promotion and rollback | Planned |
 | 10 | DevSecOps | Independent findings addressed, container and dependency evidence, documented trust boundaries | In progress |

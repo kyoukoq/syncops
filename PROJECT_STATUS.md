@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-The Windows MVP is implemented and independently verified through its API and worker. Hosted CI verified PostgreSQL Compose and the Chromium operations workflow. Independent QA verified scenarios A–G, the lead addressed material defensive review findings, and a technical writer assembled the acceptance evidence.
+The [v0.1.0 MVP preview](https://github.com/kyoukoq/syncops/releases/tag/v0.1.0) is published. Windows delivery scenarios A–G and the PostgreSQL Compose and Chromium workflow passed. The optional observability profile has since been merged into `main` after a separate hosted verification.
 
 ## Architecture
 
@@ -11,7 +11,7 @@ React/Vite console, FastAPI control plane, SQLAlchemy persistence, Alembic migra
 ## Environment evidence
 
 - Verified Git 2.56, PowerShell 7.6, Node.js 24 and npm 11, VS Code command, and a bundled Python 3.12 executable.
-- GitHub and Git Credential Manager confirmed `kyoukoq`. GitHub CLI was absent. The [public SyncOps repository](https://github.com/kyoukoq/syncops) contains the foundation commit. MVP changes are on `feature/core-mvp`.
+- GitHub and Git Credential Manager confirmed `kyoukoq`. GitHub CLI was absent. `main` contains the verified MVP and the optional observability overlay in the [public SyncOps repository](https://github.com/kyoukoq/syncops).
 - Docker, Helm and Kubernetes tooling were absent from PATH. The WSL launcher reported that WSL was not installed.
 - Verified native agent execution and functional Git worktrees. Parsed eight project TOML files, including seven unique custom roles. Project role registration in a newly trusted session is pending.
 
@@ -27,8 +27,9 @@ React/Vite console, FastAPI control plane, SQLAlchemy persistence, Alembic migra
 | Native snapshot and restore | Passed | Restored a live SQLite snapshot to a new path. Event, attempt and mock-operation counts matched (2 each) |
 | Frontend types and build | Passed | `npm --prefix frontend run build` compiled TypeScript and Vite production assets |
 | Windows browser QA | Blocked | Browser origin approval declined access to `127.0.0.1:5173` |
-| Compose, PostgreSQL and hosted Chromium | Passed in hosted CI | The [MVP workflow](https://github.com/kyoukoq/syncops/actions/runs/45506220115) built and started Compose, verified real PostgreSQL-backed delivery, and passed the Chromium sign-in, dead-letter search, replay, preserved attempts, audit, theme, mobile navigation and sign-out checks |
-| Kubernetes, GitOps and centralized observability | Not Run | Planned after core verification |
+| Compose, PostgreSQL and hosted Chromium | Passed in hosted CI | The [MVP workflow](https://github.com/kyoukoq/syncops/actions/runs/45506797414) built Compose, verified PostgreSQL delivery, and passed Chromium sign-in, dead-letter search, replay, preserved attempts, audit, theme, mobile navigation and sign-out |
+| Prometheus, Grafana OSS and Alertmanager | Passed in hosted CI | The [observability workflow](https://github.com/kyoukoq/syncops/actions/runs/45507954694) verified rules, real delivery metrics through Prometheus and Grafana, dashboard provisioning and worker alert firing and resolution |
+| Kubernetes, GitOps and centralized logs | Not Run | Tracked in the Advanced DevOps Lab milestone |
 
 ## Defensive review
 

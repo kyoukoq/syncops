@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added an optional Compose observability overlay with verified live Prometheus metrics, Grafana dashboards and local Alertmanager recovery alerts.
+
 ## 0.1.0 — 2026-11-25
 
 - Established the SyncOps project specification, native engineering roles, architecture and shared API contract.

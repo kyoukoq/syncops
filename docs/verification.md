@@ -14,7 +14,7 @@ The native Windows lab used a loopback API, a local SQLite database and syntheti
 | F | Passed | Eight concurrent submissions with the same key and body returned one event ID and produced one mock effect. Reusing the key with changed content returned 409. |
 | G | Passed | In a separate native drill, QA terminated an isolated child worker during HTTP delivery. The destination committed before the replacement acquired the expired lease. The replacement completed the event with interrupted and succeeded attempts and one persisted mock effect. |
 | H | Not run | Deliberately failed deployment and rollback await an isolated deployment drill. |
-| I | Partially verified | Native API and hosted Chromium checks exercised event investigation, attempt history and replay audit. Full reconstruction with centralized telemetry awaits verification. |
+| I | Partially verified | Native API and hosted Chromium checks exercised event investigation and replay audit. A separate hosted monitor checked delivery metrics and worker recovery alerts. Centralized log correlation remains open. |
 | J | Partially verified | A SQLite snapshot restored to a new isolated path with matching counts of two events, two attempts and two mock operations. A complete post-loss service recovery drill and PostgreSQL restore await verification. |
 
 ## Additional checks
@@ -25,7 +25,8 @@ The native Windows lab used a loopback API, a local SQLite database and syntheti
 | Backend and database | Passed | All 14 pytest cases passed, followed by a passing focused audit regression. Ruff, `pip check` and the SQLite Alembic upgrade, check, downgrade and re-upgrade passed. |
 | Frontend production build | Passed | TypeScript and the Vite production build passed. |
 | Windows browser acceptance | Blocked | Browser origin permission for the local console was declined. |
-| PostgreSQL Compose and hosted Chromium | Passed | Standard GitHub-hosted CI built and started the Compose stack, verified real PostgreSQL delivery, and passed sign-in, DLQ search, replay, preserved attempt and audit history, theme, mobile navigation and sign-out in Chromium. [GitHub Actions run](https://github.com/kyoukoq/syncops/actions/runs/45506220115) |
+| PostgreSQL Compose and hosted Chromium | Passed | Standard GitHub-hosted CI built and started the Compose stack, verified real PostgreSQL delivery, and passed sign-in, DLQ search, replay, preserved attempt and audit history, theme, mobile navigation and sign-out in Chromium. [GitHub Actions run](https://github.com/kyoukoq/syncops/actions/runs/45506797414) |
+| Optional monitoring profile | Passed | The hosted Compose run validated three alert rules, observed real delivery metrics through Prometheus and Grafana, verified dashboard provisioning, and observed the stale-worker alert firing and resolving in Alertmanager. [GitHub Actions run](https://github.com/kyoukoq/syncops/actions/runs/45507954694) |
 
 ## Repeat the native checks
 
