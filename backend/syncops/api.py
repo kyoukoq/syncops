@@ -191,18 +191,23 @@ def list_events(
 
 
 @api.get("/events/{event_id}", response_model=EventDetailView)
-def event_detail(event_id: UUID, db: Db, _user: Actor):
+def event_detail(event_id: UUID, db: Db, user: Actor):
     event = db.get(Event, str(event_id))
     if event is None:
         raise HTTPException(404, "Event not found")
     attempts = db.scalars(select(Attempt).where(Attempt.event_id == event.id).order_by(Attempt.number))
-    entries = db.scalars(
-        select(Audit).where(Audit.target_id == event.id).order_by(Audit.created_at, Audit.id)
-    )
+    entries = []
+    if user.role == "admin":
+        entries = [
+            format_audit(entry)
+            for entry in db.scalars(
+                select(Audit).where(Audit.target_id == event.id).order_by(Audit.created_at, Audit.id)
+            )
+        ]
     return {
         **format_event(event),
         "attempts": [format_attempt(attempt) for attempt in attempts],
-        "audit": [format_audit(entry) for entry in entries],
+        "audit": entries,
     }
 
 

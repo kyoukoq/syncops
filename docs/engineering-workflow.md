@@ -10,8 +10,10 @@ SyncOps uses the lead Codex agent for architecture approval, shared contracts, i
 | Backend | `backend/` | API, migrations, persistence, worker, simulator and backend tests |
 | Frontend | `frontend/` | React operations console and real API interactions |
 | Platform | `deploy/`, `scripts/`, Compose and workflows | Native launcher, container profile and delivery checks |
+| QA | `e2e/native_delivery.py` | Verified live scenarios A–F and a separate worker process crash drill |
+| Security | Read-only review | Raised audit exposure, cleartext local secret modes, smoke redirect and container memory risks. The lead applied remediations |
 
-Implementation began with explicit non-overlapping file ownership in a shared working folder while Git metadata writes required escalation. The local foundation commit established `main` and a separate `feature/core-mvp` branch. Future parallel feature work can use isolated worktrees once the mount and permissions are verified. The lead owns integration and remote writes.
+Implementation began with explicit non-overlapping file ownership in a shared working folder while Git metadata writes required escalation. The local foundation commit established `main` and a separate `feature/core-mvp` branch. A detached test worktree successfully opened the foundation commit. The lead owns integration and remote writes.
 
 The repository stores seven custom role definitions under `.codex/agents/`. Native delegation was exercised using the running chat's available agents. The files were validated as TOML and their option names were verified against the Codex reference. When continuing in a new trusted SyncOps chat, inspect the available agent types for `syncops_architect`, `syncops_backend`, `syncops_frontend`, `syncops_platform`, `syncops_qa`, `syncops_security` and `syncops_documentation`. Record name-based launch results before claiming registration.
 

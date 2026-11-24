@@ -59,7 +59,7 @@ New events persist an integration configuration snapshot. Disabling an integrati
 
 `GET /events?status=dead_letter&search=company&integration_id=...&limit=25&offset=0&sort=newest` returns `{items: Event[], total: number}`. Filter values are optional and `sort` supports `newest` and `oldest`.
 
-`GET /events/{id}` returns `Event & {attempts: Attempt[], audit: AuditEntry[]}`. Arbitrary payload contents are omitted from read responses. `POST /events/{id}/retry` accepts `{reason: string, clear_simulation: boolean}`, requeues a dead-letter event under the same ID and returns the event. Previous attempt history remains intact.
+`GET /events/{id}` returns `Event & {attempts: Attempt[], audit: AuditEntry[]}`. The audit array is empty for operators and viewers, and arbitrary payload contents are omitted from read responses. `POST /events/{id}/retry` accepts `{reason: string, clear_simulation: boolean}`, requeues a dead-letter event under the same ID and returns the event. Previous attempt history remains intact.
 
 `POST /webhooks/{integration_id}` accepts `{event_type, payload}` with `Idempotency-Key` and `X-Webhook-Secret` headers. Webhook configuration is deployment-scoped and disabled without `SYNCOPS_WEBHOOK_SECRET`. Failure injection is restricted to the authenticated demo submission path.
 

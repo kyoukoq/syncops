@@ -1,4 +1,4 @@
-#Requires -Version 7.1
+#Requires -Version 7.4
 [CmdletBinding()]
 param()
 
@@ -23,7 +23,14 @@ $settings = foreach ($name in $names) {
     "$name=$secret"
 }
 
-$stream = [System.IO.File]::Open($envPath, 'CreateNew', 'Write', 'None')
+$options = [System.IO.FileStreamOptions]::new()
+$options.Mode = [System.IO.FileMode]::CreateNew
+$options.Access = [System.IO.FileAccess]::Write
+$options.Share = [System.IO.FileShare]::None
+if (-not $IsWindows) {
+    $options.UnixCreateMode = [System.IO.UnixFileMode]::UserRead -bor [System.IO.UnixFileMode]::UserWrite
+}
+$stream = [System.IO.File]::Open($envPath, $options)
 try {
     $writer = [System.IO.StreamWriter]::new($stream)
     $writer.WriteLine(($settings -join "`n"))

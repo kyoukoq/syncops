@@ -7,7 +7,13 @@ import time
 import uuid
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.request import ProxyHandler, Request, build_opener
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
+
+
+class NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def read_admin_password(env_file: Path | None) -> str:
@@ -20,11 +26,13 @@ def read_admin_password(env_file: Path | None) -> str:
         for line in env_file.read_text(encoding="utf-8").splitlines():
             if line.startswith("SYNCOPS_ADMIN_PASSWORD="):
                 return line.partition("=")[2]
-    raise RuntimeError("Provide an admin password through the environment or --credentials.")
+    raise RuntimeError(
+        "Provide an admin password through the environment or --credentials."
+    )
 
 
 def run_smoke(base: str, password: str) -> None:
-    opener = build_opener(ProxyHandler({}))
+    opener = build_opener(ProxyHandler({}), NoRedirect())
     token = ""
 
     def request(path: str, data: dict | None = None, key: str | None = None):
@@ -37,7 +45,9 @@ def run_smoke(base: str, password: str) -> None:
             headers["Content-Type"] = "application/json"
         body = json.dumps(data).encode() if data is not None else None
         try:
-            with opener.open(Request(f"{base}{path}", data=body, headers=headers), timeout=5) as response:
+            with opener.open(
+                Request(f"{base}{path}", data=body, headers=headers), timeout=5
+            ) as response:
                 content = response.read()
                 return json.loads(content) if content else None
         except HTTPError as error:
@@ -45,7 +55,9 @@ def run_smoke(base: str, password: str) -> None:
 
     token = request("/auth/login", {"username": "admin", "password": password})["token"]
     try:
-        integration = next((item for item in request("/integrations") if item["enabled"]), None)
+        integration = next(
+            (item for item in request("/integrations") if item["enabled"]), None
+        )
         if not integration:
             raise RuntimeError("An enabled integration is required for the smoke test.")
         key = str(uuid.uuid4())
@@ -65,10 +77,14 @@ def run_smoke(base: str, password: str) -> None:
             if result["status"] == "succeeded":
                 if not result["attempts"]:
                     raise RuntimeError("A delivered event has no attempt history.")
-                print("Smoke passed: sign-in, submission, deduplication, worker and mock delivery.")
+                print(
+                    "Smoke passed: sign-in, submission, deduplication, worker and mock delivery."
+                )
                 return
             if result["status"] == "dead_letter":
-                raise RuntimeError(f"The simulated delivery entered the dead-letter queue: {result['error']}.")
+                raise RuntimeError(
+                    f"The simulated delivery entered the dead-letter queue: {result['error']}."
+                )
             time.sleep(0.25)
         raise RuntimeError("The simulated delivery did not complete within 25 seconds.")
     finally:
@@ -80,7 +96,19 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--credentials", type=Path)
     args = parser.parse_args()
-    run_smoke(f"{args.base_url.rstrip('/')}/api/v1", read_admin_password(args.credentials))
+    target = urlsplit(args.base_url)
+    if (
+        target.scheme != "http"
+        or target.hostname not in {"localhost", "127.0.0.1", "::1"}
+        or target.username is not None
+        or target.path.rstrip("/")
+        or target.query
+        or target.fragment
+    ):
+        parser.error("Use an HTTP loopback origin for the isolated smoke test.")
+    run_smoke(
+        f"{args.base_url.rstrip('/')}/api/v1", read_admin_password(args.credentials)
+    )
 
 
 if __name__ == "__main__":

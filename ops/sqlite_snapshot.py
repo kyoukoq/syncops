@@ -19,7 +19,9 @@ def snapshot(source: Path, destination: Path) -> None:
             with closing(sqlite3.connect(destination)) as destination_db:
                 source_db.backup(destination_db)
                 if destination_db.execute("PRAGMA quick_check").fetchone() != ("ok",):
-                    raise RuntimeError("SQLite reported an integrity error in the snapshot")
+                    raise RuntimeError(
+                        "SQLite reported an integrity error in the snapshot"
+                    )
         except Exception:
             destination.unlink(missing_ok=True)
             raise
@@ -28,7 +30,9 @@ def snapshot(source: Path, destination: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, help="Existing SQLite database or backup")
-    parser.add_argument("destination", type=Path, help="New path for the consistent copy")
+    parser.add_argument(
+        "destination", type=Path, help="New path for the consistent copy"
+    )
     args = parser.parse_args()
     try:
         snapshot(args.source, args.destination)

@@ -151,6 +151,9 @@ def test_exhaustion_replay_roles_and_audit(api, simulator):
     audit = api.get("/api/v1/audit", headers=admin).json()["items"]
     assert any(row["action"] == "event.replayed" and row["actor"] == "operator" for row in audit)
     assert api.get("/api/v1/audit", headers=operator).status_code == 403
+    assert any(row["action"] == "event.replayed" for row in detail(api, admin, event.id)["audit"])
+    assert detail(api, operator, event.id)["audit"] == []
+    assert detail(api, viewer, event.id)["audit"] == []
 
 
 def test_crashed_worker_does_not_duplicate_business_effect(api, simulator):
