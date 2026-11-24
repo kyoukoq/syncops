@@ -35,6 +35,8 @@ docker compose up -d --build --wait
 
 Open [SyncOps on port 8080](http://127.0.0.1:8080/) and use the admin password from your local `.env`. The application, database and mock are on a private Compose network. Stop services with `docker compose down` and keep the named database volume. See [project status](PROJECT_STATUS.md) for current profile verification and Kubernetes lab progress.
 
+The optional [observability overlay](docs/runbooks/observability.md) adds local Prometheus, Grafana OSS and Alertmanager to the Compose profile.
+
 ## Architecture
 
 ```mermaid
