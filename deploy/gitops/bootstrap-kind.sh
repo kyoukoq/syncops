@@ -21,8 +21,14 @@ kubectl --context "$context" create namespace argocd
 kubectl --context "$context" -n argocd apply --server-side -f "$argocd_manifest"
 for crd in applications.argoproj.io appprojects.argoproj.io; do
     for _ in {1..45}; do
-        established=$(kubectl --context "$context" get crd "$crd" \
-            -o 'jsonpath={.status.conditions[?(@.type=="Established")].status}')
+        established=$(kubectl --context "$context" get crd "$crd" -o json | python3 -c '
+import json
+import sys
+
+status = json.load(sys.stdin).get("status") or {}
+conditions = status.get("conditions") or []
+print(any(item["type"] == "Established" and item["status"] == "True" for item in conditions))
+')
         if [[ "$established" == True ]]; then
             break
         fi
@@ -33,6 +39,9 @@ for crd in applications.argoproj.io appprojects.argoproj.io; do
         exit 1
     fi
 done
+kubectl --context "$context" -n argocd patch configmap argocd-cmd-params-cm --type=merge \
+    -p '{"data":{"controller.sync.timeout.seconds":"150"}}'
+kubectl --context "$context" -n argocd rollout restart statefulset/argocd-application-controller
 kubectl --context "$context" -n argocd rollout status deployment/argocd-repo-server --timeout=180s
 kubectl --context "$context" -n argocd rollout status statefulset/argocd-application-controller --timeout=180s
 

@@ -53,7 +53,7 @@ Wait for the Application to reach `Synced` and `Healthy` at the new revision bef
 
 ## Recover through Git
 
-Revert the failed staging commit on `syncops-lab-staging` and push the revert. For a production-lab promotion merge, run `git revert -m 1 <promotion-merge-sha>` on `syncops-lab-production`, push, and verify the new revert commit with `release.py verify`. Run a fresh synthetic delivery smoke on the recovered environment. Git reverts restore desired workload configuration. Plan backwards-compatible migrations or take a database backup before schema changes.
+Revert the failed staging commit on `syncops-lab-staging` and push the revert. The dedicated controller has a 150-second sync timeout so a stuck rollout can finish failing before the revert reconciles. For a production-lab promotion merge, run `git revert -m 1 <promotion-merge-sha>` on `syncops-lab-production`, push, and verify the new revert commit with `release.py verify`. Run a fresh synthetic delivery smoke on the recovered environment. Git reverts restore desired workload configuration. Plan backwards-compatible migrations or take a database backup before schema changes.
 
 ## Verification
 
