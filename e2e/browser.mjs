@@ -413,7 +413,9 @@ async function adminFlow() {
   await page.getByRole('link', { name: 'View all', exact: true }).click();
   await page.waitForURL(url => url.hash.includes('integration_id=' + integration.id));
   await page.getByRole('table', { name: 'Integration events' }).waitFor();
-  assert.equal(await page.getByLabel('Integration', { exact: true }).inputValue(), integration.id);
+  const integrationFilter = page.getByLabel('Integration', { exact: true });
+  await integrationFilter.getByRole('option', { name: integrationName, exact: true }).waitFor({ state: 'attached' });
+  assert.equal(await integrationFilter.inputValue(), integration.id);
 
   await verifyDashboard(page);
   await signOut(page, token);
