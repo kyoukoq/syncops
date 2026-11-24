@@ -1,0 +1,4 @@
+\getenv app_password SYNCOPS_DB_PASSWORD
+CREATE ROLE syncops LOGIN PASSWORD :'app_password';
+ALTER DATABASE syncops OWNER TO syncops;
+REVOKE CONNECT ON DATABASE syncops FROM PUBLIC;
