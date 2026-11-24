@@ -26,7 +26,7 @@ The native SQLite database and local logs are stored in the ignored `.syncops/` 
 
 ## Start the Compose profile
 
-The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires a Docker Engine with current Compose and BuildKit support, plus PowerShell 7.4+ for the settings generator. Initialize new local secrets once.
+The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires Docker Engine 28.0+, Compose v2 and BuildKit support, plus PowerShell 7.4+ for the settings generator. Initialize new local secrets once.
 
 ```powershell
 pwsh -File scripts/Initialize-Compose.ps1

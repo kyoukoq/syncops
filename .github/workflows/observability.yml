@@ -5,6 +5,9 @@ on:
     paths:
       - 'compose.yaml'
       - 'compose.observability.yaml'
+      - 'backend/**'
+      - 'scripts/Initialize-Compose.ps1'
+      - 'scripts/smoke.py'
       - 'deploy/observability/**'
       - '.github/workflows/observability.yml'
   workflow_dispatch:
@@ -57,14 +60,40 @@ jobs:
           curl --fail --silent --show-error --user "admin:$SYNCOPS_GRAFANA_PASSWORD" \
             'http://127.0.0.1:3000/api/dashboards/uid/syncops-overview' \
             | python3 -c 'import json,sys; doc=json.load(sys.stdin); assert doc["dashboard"]["uid"]=="syncops-overview"'
+          curl --fail --silent --show-error --user "admin:$SYNCOPS_GRAFANA_PASSWORD" --get \
+            'http://127.0.0.1:3000/api/datasources/proxy/uid/syncops-prometheus/api/v1/query' \
+            --data-urlencode 'query=syncops_events{job="syncops-api",status="succeeded"} > 0' \
+            | python3 -c 'import json,sys; assert json.load(sys.stdin)["data"]["result"]'
           curl --fail --silent --show-error 'http://127.0.0.1:9093/-/ready' >/dev/null
-      - name: Observe the local alert after an isolated worker stop
+      - name: Verify worker alert firing and resolution in the isolated lab
+        shell: bash
         run: |
+          heartbeat_fresh() {
+            curl --fail --silent --show-error --get 'http://127.0.0.1:9090/api/v1/query' \
+              --data-urlencode 'query=time() - syncops_worker_heartbeat_timestamp_seconds{job="syncops-api"} < 45' \
+              | python3 -c 'import json,sys; assert json.load(sys.stdin)["data"]["result"]'
+          }
+          worker_alert_is() {
+            curl --fail --silent --show-error 'http://127.0.0.1:9093/api/v2/alerts' \
+              | python3 -c 'import json,sys; active=any(a["labels"].get("alertname")=="SyncOpsWorkerHeartbeatStale" and a["status"]["state"]=="active" for a in json.load(sys.stdin)); sys.exit(active != (sys.argv[1]=="active"))' "$1"
+          }
+          heartbeat_fresh
+          worker_alert_is clear
           docker compose stop worker
+          firing=false
           for attempt in {1..28}; do
-            if curl --fail --silent --show-error 'http://127.0.0.1:9093/api/v2/alerts' \
-              | python3 -c 'import json,sys; alerts=json.load(sys.stdin); sys.exit(not any(a["labels"].get("alertname")=="SyncOpsWorkerHeartbeatStale" and a["status"]["state"]=="active" for a in alerts))'; then
-              docker compose start worker
+            if worker_alert_is active; then
+              echo 'Alertmanager received the stale worker alert.'
+              firing=true
+              break
+            fi
+            sleep 5
+          done
+          test "$firing" = true
+          docker compose start worker
+          for attempt in {1..20}; do
+            if heartbeat_fresh && worker_alert_is clear; then
+              echo 'Worker heartbeat recovered and the alert resolved.'
               exit 0
             fi
             sleep 5

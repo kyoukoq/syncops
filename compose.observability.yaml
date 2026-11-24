@@ -28,6 +28,8 @@ services:
       api:
         condition: service_healthy
     read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 256m
@@ -47,7 +49,7 @@ services:
       - alertmanager_data:/alertmanager
     ports:
       - 127.0.0.1:9093:9093
-    networks: [telemetry, monitoring_ui]
+    networks: [monitoring_ui]
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:9093/-/ready"]
       interval: 10s
@@ -80,7 +82,7 @@ services:
       - ./deploy/observability/grafana/syncops-overview.json:/etc/grafana/syncops-dashboards/syncops-overview.json:ro
     ports:
       - 127.0.0.1:3000:3000
-    networks: [telemetry, monitoring_ui]
+    networks: [monitoring_ui]
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:3000/api/health"]
       interval: 10s

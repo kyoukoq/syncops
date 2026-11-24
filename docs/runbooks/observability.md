@@ -4,7 +4,7 @@ The optional Compose overlay scrapes the SyncOps API every 15 seconds, provision
 
 ## Start the lab
 
-Run these commands from the repository root with PowerShell 7.4 or later and a local Docker Engine with Compose v2. Keep the original core `.env` for an existing lab.
+Run these commands from the repository root with PowerShell 7.4 or later, Docker Engine 28.0 or later and Compose v2. Use the default bridge routing. Earlier Docker versions can expose loopback-published ports to hosts on the same network segment. Keep the original core `.env` for an existing lab. [Docker port publishing](https://docs.docker.com/engine/network/port-publishing/)
 
 ```powershell
 if (-not (Test-Path -LiteralPath .env)) { ./scripts/Initialize-Compose.ps1 }
@@ -22,7 +22,7 @@ Grafana uses `admin` and the supplied password when it creates its database. For
 | Prometheus | `http://127.0.0.1:9090` | Scrape targets and alert rule evaluation |
 | Alertmanager | `http://127.0.0.1:9093` | Grouped active alerts and local silences |
 
-The published ports use IPv4 loopback. Prometheus and Alertmanager trust local users. The application proxy does not publish its internal `/metrics` path. The overlay adds a private telemetry network for scrape traffic and leaves the core database network in place.
+The published ports use IPv4 loopback. Prometheus and Alertmanager trust local users. The application proxy does not publish its internal `/metrics` path. Only the API and Prometheus share the private telemetry network. Grafana and Alertmanager communicate with Prometheus through the monitoring network.
 
 ## Verify before deployment
 
