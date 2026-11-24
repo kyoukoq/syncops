@@ -66,6 +66,9 @@ export function Events({ session, mode, filters }: { session: Session; mode: 'ev
         </select>}
         <select aria-label="Integration" value={integration} onChange={(event) => { setIntegration(event.target.value); setOffset(0); }}>
           <option value="">All integrations</option>
+          {integration && !integrations.data?.some(({ id }) => id === integration) && (
+            <option value={integration}>{integrations.loading ? 'Loading integration…' : 'Selected integration'}</option>
+          )}
           {integrations.data?.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
         </select>
         <select aria-label="Sort events" value={sort} onChange={(event) => { setSort(event.target.value); setOffset(0); }}>

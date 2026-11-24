@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      export_visual_evidence:
+        description: Include two synthetic UI screenshots in the workflow log
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -88,8 +93,17 @@ jobs:
         run: |
           source .env
           echo "::add-mask::$SYNCOPS_ADMIN_PASSWORD"
+          echo "::add-mask::$SYNCOPS_OPERATOR_PASSWORD"
+          echo "::add-mask::$SYNCOPS_VIEWER_PASSWORD"
           SYNCOPS_E2E_URL=http://127.0.0.1:8080/ \
-            SYNCOPS_E2E_ADMIN_PASSWORD="$SYNCOPS_ADMIN_PASSWORD" npm --prefix frontend run test:e2e
+            SYNCOPS_E2E_ADMIN_PASSWORD="$SYNCOPS_ADMIN_PASSWORD" \
+            SYNCOPS_E2E_OPERATOR_PASSWORD="$SYNCOPS_OPERATOR_PASSWORD" \
+            SYNCOPS_E2E_VIEWER_PASSWORD="$SYNCOPS_VIEWER_PASSWORD" \
+            SYNCOPS_E2E_SCREENSHOTS="$RUNNER_TEMP/syncops-browser" \
+            npm --prefix frontend run test:e2e
+      - name: Export selected synthetic screenshots to the run log
+        if: github.event_name == 'workflow_dispatch' && inputs.export_visual_evidence
+        run: node e2e/export-browser-evidence.mjs "$RUNNER_TEMP/syncops-browser"
       - name: Show container state
         if: failure()
         run: docker compose ps -a
