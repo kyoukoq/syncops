@@ -1,0 +1,144 @@
+x-lab-labels: &lab-labels
+  io.syncops.reliability.run_id: ${SYNCOPS_LAB_RUN_ID:?Use the PostgreSQL reliability runner}
+
+x-runtime: &runtime
+  image: syncops/postgres-lab:${SYNCOPS_LAB_RUN_ID:?Use the PostgreSQL reliability runner}
+  build:
+    context: ../../backend
+    dockerfile: ../deploy/backend.Dockerfile
+    labels: *lab-labels
+  labels: *lab-labels
+  init: true
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [private]
+  restart: "no"
+  mem_limit: 256m
+
+x-database: &database
+  SYNCOPS_DATABASE_URL: postgresql+psycopg://syncops_lab@db:5432/${SYNCOPS_LAB_DATABASE:?Use the PostgreSQL reliability runner}
+  PGPASSWORD: ${SYNCOPS_LAB_APP_PASSWORD:?Use the PostgreSQL reliability runner}
+
+x-worker: &worker
+  <<: *runtime
+  command: [python, -m, syncops.worker]
+  healthcheck:
+    test: [CMD, python, -m, syncops.worker, --check]
+    start_period: 5s
+    interval: 2s
+    timeout: 3s
+    retries: 20
+
+services:
+  db:
+    image: postgres:17-bookworm
+    labels: *lab-labels
+    environment:
+      POSTGRES_DB: ${SYNCOPS_LAB_SOURCE_DB:?Use the PostgreSQL reliability runner}
+      POSTGRES_PASSWORD: ${SYNCOPS_LAB_PG_PASSWORD:?Use the PostgreSQL reliability runner}
+      SYNCOPS_LAB_APP_PASSWORD: ${SYNCOPS_LAB_APP_PASSWORD:?Use the PostgreSQL reliability runner}
+    volumes:
+      - data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-lab.sql:ro
+    networks: [private]
+    restart: "no"
+    mem_limit: 512m
+    healthcheck:
+      test: [CMD, pg_isready, --host, 127.0.0.1, --username, postgres]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *runtime
+    command: [python, -m, alembic, upgrade, head]
+    environment: *database
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *runtime
+    mem_limit: 512m
+    environment:
+      <<: *database
+      SYNCOPS_ADMIN_PASSWORD: ${SYNCOPS_LAB_ADMIN_PASSWORD:?Use the PostgreSQL reliability runner}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - target: 8000
+        host_ip: 127.0.0.1
+        published: "0"
+    networks: [private, edge]
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/readyz', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  mock:
+    <<: *runtime
+    command: [python, -m, uvicorn, "syncops.mock:app", --host, 0.0.0.0, --port, "8001", --no-access-log]
+    environment:
+      <<: *database
+      SYNCOPS_MOCK_TOKEN: ${SYNCOPS_LAB_MOCK_TOKEN:?Use the PostgreSQL reliability runner}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/readyz', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  gate:
+    <<: *runtime
+    command: [python, /lab/held_response.py]
+    environment:
+      SYNCOPS_LAB_RUN_ID: ${SYNCOPS_LAB_RUN_ID:?Use the PostgreSQL reliability runner}
+    volumes:
+      - ./held_response.py:/lab/held_response.py:ro
+    depends_on:
+      mock:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "from urllib.request import urlopen; urlopen('http://127.0.0.1:8010/healthz', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  crash-worker:
+    <<: *worker
+    environment:
+      <<: *database
+      SYNCOPS_MOCK_TOKEN: ${SYNCOPS_LAB_MOCK_TOKEN:?Use the PostgreSQL reliability runner}
+      SYNCOPS_MOCK_BASE_URL: http://gate:8010
+    depends_on:
+      gate:
+        condition: service_healthy
+
+  worker:
+    <<: *worker
+    environment:
+      <<: *database
+      SYNCOPS_MOCK_TOKEN: ${SYNCOPS_LAB_MOCK_TOKEN:?Use the PostgreSQL reliability runner}
+      SYNCOPS_MOCK_BASE_URL: http://mock:8001
+    depends_on:
+      api:
+        condition: service_healthy
+      mock:
+        condition: service_healthy
+
+networks:
+  private:
+    internal: true
+    labels: *lab-labels
+  edge:
+    labels: *lab-labels
+
+volumes:
+  data:
+    labels: *lab-labels
