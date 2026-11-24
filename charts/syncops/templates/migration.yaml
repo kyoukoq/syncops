@@ -1,0 +1,53 @@
+{{- $signature := list .Chart.Version .Values.images.backend .Values.migration.resources | toJson | sha256sum | trunc 10 }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name | trunc 44 | trimSuffix "-" }}-migrate-{{ $signature }}
+  labels:
+    {{- include "syncops.selector" (dict "root" . "component" "migrate") | nindent 4 }}
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 240
+  template:
+    metadata:
+      labels:
+        {{- include "syncops.selector" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- include "syncops.podSecurity" (dict "uid" 10001 "gid" 10001) | nindent 8 }}
+      containers:
+        - name: migrate
+          {{- include "syncops.backendImage" . | nindent 10 }}
+          securityContext:
+            {{- include "syncops.containerSecurity" . | nindent 12 }}
+          env:
+            {{- include "syncops.databaseEnv" . | nindent 12 }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              python - <<'PY'
+              import time
+
+              from sqlalchemy import text
+              from sqlalchemy.exc import OperationalError
+              from syncops.database import engine
+
+              for attempt in range(35):
+                  try:
+                      with engine.connect() as connection:
+                          connection.execute(text("SELECT 1"))
+                      break
+                  except OperationalError:
+                      if attempt == 34:
+                          raise SystemExit("Database did not become available for migration")
+                      time.sleep(2)
+              PY
+              exec python -m alembic upgrade head
+          volumeMounts:
+            {{- include "syncops.tempMount" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+      volumes:
+        {{- include "syncops.tempVolume" . | nindent 8 }}

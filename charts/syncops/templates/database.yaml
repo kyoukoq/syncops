@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-db-init
+  labels:
+    {{- include "syncops.labels" . | nindent 4 }}
+data:
+  01-syncops.sql: |
+    {{- .Files.Get "files/postgres-init.sql" | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-db
+  labels:
+    {{- include "syncops.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "syncops.selector" (dict "root" . "component" "db") | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-db
+  labels:
+    {{- include "syncops.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Release.Name }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "syncops.selector" (dict "root" . "component" "db") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "syncops.selector" (dict "root" . "component" "db") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "syncops.podSecurity" (dict "uid" 999 "gid" 999) | nindent 8 }}
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: postgres
+          image: {{ .Values.images.postgres.reference | quote }}
+          imagePullPolicy: {{ .Values.images.postgres.pullPolicy }}
+          securityContext:
+            {{- include "syncops.containerSecurity" . | nindent 12 }}
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_DB
+              value: syncops
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db-admin
+                  key: password
+            - name: SYNCOPS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-db-app
+                  key: password
+          ports:
+            - {name: postgres, containerPort: 5432}
+          volumeMounts:
+            {{- include "syncops.tempMount" . | nindent 12 }}
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: socket
+              mountPath: /var/run/postgresql
+            - name: db-init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          startupProbe:
+            tcpSocket: {port: postgres}
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "syncops", "-d", "syncops"]
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: postgres}
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.database.resources | nindent 12 }}
+      volumes:
+        {{- include "syncops.tempVolume" . | nindent 8 }}
+        - name: socket
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: db-init
+          configMap:
+            name: {{ .Release.Name }}-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.database.storageClassName }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.storageSize | quote }}

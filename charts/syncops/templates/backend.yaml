@@ -1,0 +1,122 @@
+{{- range $component := list "api" "mock" "worker" }}
+{{- $selector := dict "root" $ "component" $component }}
+{{- $settings := index $.Values $component }}
+{{- $port := ternary 8000 8001 (eq $component "api") }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}
+  labels:
+    {{- include "syncops.selector" $selector | nindent 4 }}
+spec:
+  replicas: {{ if eq $component "worker" }}{{ $.Values.worker.replicas }}{{ else }}1{{ end }}
+  selector:
+    matchLabels:
+      {{- include "syncops.selector" $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "syncops.selector" $selector | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if eq $component "worker" }}
+      terminationGracePeriodSeconds: 45
+      {{- end }}
+      securityContext:
+        {{- include "syncops.podSecurity" (dict "uid" 10001 "gid" 10001) | nindent 8 }}
+      initContainers:
+        - name: wait-for-schema
+          {{- include "syncops.backendImage" $ | nindent 10 }}
+          securityContext:
+            {{- include "syncops.containerSecurity" . | nindent 12 }}
+          env:
+            {{- include "syncops.databaseEnv" $ | nindent 12 }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until python -m alembic current --check-heads; do sleep 3; done
+              {{- if eq $component "worker" }}
+              until python -c "from urllib.request import urlopen; urlopen('http://{{ $.Release.Name }}-mock:8001/readyz', timeout=2).close()"; do sleep 3; done
+              {{- end }}
+          volumeMounts:
+            {{- include "syncops.tempMount" . | nindent 12 }}
+          resources:
+            {{- toYaml $.Values.migration.resources | nindent 12 }}
+      containers:
+        - name: {{ $component }}
+          {{- include "syncops.backendImage" $ | nindent 10 }}
+          securityContext:
+            {{- include "syncops.containerSecurity" . | nindent 12 }}
+          {{- if eq $component "mock" }}
+          command: ["python", "-m", "uvicorn", "syncops.mock:app", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]
+          {{- else if eq $component "worker" }}
+          command: ["python", "-m", "syncops.worker"]
+          {{- end }}
+          env:
+            {{- include "syncops.databaseEnv" $ | nindent 12 }}
+            {{- if eq $component "api" }}
+            - name: SYNCOPS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-api-auth
+                  key: admin-password
+            {{- range $credential, $enabled := $.Values.api.optionalCredentials }}
+            {{- if $enabled }}
+            - name: SYNCOPS_{{ upper $credential }}_{{ ternary "SECRET" "PASSWORD" (eq $credential "webhook") }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-api-auth
+                  key: {{ $credential }}-{{ ternary "secret" "password" (eq $credential "webhook") }}
+            {{- end }}
+            {{- end }}
+            {{- else }}
+            {{- include "syncops.mockTokenEnv" $ | nindent 12 }}
+            {{- end }}
+            {{- if eq $component "worker" }}
+            - name: SYNCOPS_MOCK_BASE_URL
+              value: {{ printf "http://%s-mock:8001" $.Release.Name | quote }}
+          readinessProbe:
+            exec:
+              command: ["python", "-m", "syncops.worker", "--check"]
+            timeoutSeconds: 4
+            periodSeconds: 10
+            {{- else }}
+          ports:
+            - {name: http, containerPort: {{ $port }}}
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 2
+            failureThreshold: 45
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            timeoutSeconds: 4
+            periodSeconds: 5
+            {{- end }}
+          volumeMounts:
+            {{- include "syncops.tempMount" . | nindent 12 }}
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+      volumes:
+        {{- include "syncops.tempVolume" . | nindent 8 }}
+{{- if ne $component "worker" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.Release.Name }}-{{ $component }}
+  labels:
+    {{- include "syncops.selector" $selector | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "syncops.selector" $selector | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $port }}
+      targetPort: http
+{{- end }}
+{{- end }}
