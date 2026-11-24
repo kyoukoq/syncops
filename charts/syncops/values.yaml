@@ -1,0 +1,56 @@
+images:
+  backend:
+    reference: syncops/backend:local
+    pullPolicy: Never
+  frontend:
+    reference: syncops/frontend:local
+    pullPolicy: Never
+  postgres:
+    reference: postgres:17-bookworm
+    pullPolicy: IfNotPresent
+
+database:
+  storageSize: 1Gi
+  storageClassName: ""
+  resources:
+    requests: {cpu: 200m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+
+api:
+  resources:
+    requests: {cpu: 100m, memory: 96Mi}
+    limits: {cpu: "1", memory: 512Mi}
+  optionalCredentials:
+    operator: false
+    viewer: false
+    webhook: false
+
+mock:
+  resources:
+    requests: {cpu: 75m, memory: 64Mi}
+    limits: {cpu: "1", memory: 256Mi}
+
+worker:
+  replicas: 2
+  resources:
+    requests: {cpu: 75m, memory: 64Mi}
+    limits: {cpu: "1", memory: 256Mi}
+
+web:
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 500m, memory: 128Mi}
+
+migration:
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 192Mi}
+
+networkPolicy:
+  enabled: true
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""

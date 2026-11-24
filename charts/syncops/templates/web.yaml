@@ -1,0 +1,77 @@
+{{- $config := tpl (.Files.Get "files/nginx.conf") . }}
+{{- $selector := include "syncops.selector" (dict "root" . "component" "web") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- $selector | nindent 4 }}
+data:
+  default.conf: |
+    {{- $config | nindent 4 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- $selector | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- $selector | nindent 4 }}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-web
+  labels:
+    {{- $selector | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $selector | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $selector | nindent 8 }}
+      annotations:
+        checksum/config: {{ $config | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "syncops.podSecurity" (dict "uid" 101 "gid" 101) | nindent 8 }}
+      containers:
+        - name: web
+          image: {{ .Values.images.frontend.reference | quote }}
+          imagePullPolicy: {{ .Values.images.frontend.pullPolicy }}
+          securityContext:
+            {{- include "syncops.containerSecurity" . | nindent 12 }}
+          ports:
+            - {name: http, containerPort: 8080}
+          volumeMounts:
+            {{- include "syncops.tempMount" . | nindent 12 }}
+            - name: nginx
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+          startupProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 2
+            failureThreshold: 45
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+      volumes:
+        {{- include "syncops.tempVolume" . | nindent 8 }}
+        - name: nginx
+          configMap:
+            name: {{ .Release.Name }}-web
