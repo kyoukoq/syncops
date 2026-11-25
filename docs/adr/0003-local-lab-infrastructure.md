@@ -1,14 +1,14 @@
 # ADR 0003. WSL2 and declarative local lab
 
-**Status** — Accepted for the Advanced DevOps Lab. Windows host activation is pending.
+**Status** — Accepted for the Advanced DevOps Lab. The WSL2 and rootless Docker foundation is verified locally.
 
 ## Context
 
-SyncOps must retain its Windows SQLite profile and provide an isolated Linux container and Kubernetes lab on one workstation. The target host reports Windows 11 Pro build 26200, an active hypervisor, enabled firmware virtualization and approximately 32 GiB memory. The current session is not elevated and WSL is not installed.
+SyncOps must retain its Windows SQLite profile and provide an isolated Linux container and Kubernetes lab on one workstation. The verified workstation runs Ubuntu 24.04.5 under WSL2 with systemd as PID 1. WSL reported 12 CPUs and 15 GiB of memory. The Linux checkout and its credentials have separate storage from the Windows SQLite profile.
 
 ## Decision
 
-Use Ubuntu 24.04 on WSL2 with Docker Engine and its Compose plugin. Prefer rootless Engine in a dedicated Ubuntu environment when user-service and cgroup delegation checks pass. Use Docker Engine 28 or newer with default bridge routing for loopback publications. Keep the native profile available while host prerequisites are pending. Local apps and dashboards use loopback or a Kubernetes port-forward.
+Use Ubuntu 24.04 on WSL2 with Docker Engine and its Compose plugin. Use the rootless user service and a local Unix socket. Docker Engine 29.10.1 and Compose 5.8.0 passed local checks with cgroup v2 and systemd delegation. System services for the rootful daemon remain disabled, and the rootless daemon starts on demand. Local apps and dashboards use loopback or a Kubernetes port-forward.
 
 Declare workload state in Compose and Helm and use Git review and an Argo CD reconciliation path for controlled environment changes. Store lab secrets outside Git. Use disposable public GitHub-hosted runners for independent integration checks with synthetic data.
 

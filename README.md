@@ -14,6 +14,14 @@ When a logistics order update fails between a CRM, ERP and transport system, an 
 - Investigate permanent failure, authorize a replay and verify the result and audit history.
 - Confirm ingress idempotency and understand how the simulator deduplicates a repeated delivery.
 
+## Local application screenshots
+
+Windows Chromium captured these screens against the local WSL2 PostgreSQL deployment with synthetic data.
+
+![SyncOps overview with actual delivery counts and activity chart](docs/images/local-overview.png)
+
+![SyncOps event recovery with HTTP 422, successful replay and audit history](docs/images/local-event-recovery.png)
+
 ## Start on Windows
 
 Use PowerShell 7.4+, Python 3.12 and Node.js 24 with npm. The launcher checks for the bundled Codex Python when the Windows Store alias is the only Python on PATH. Pass `-PythonPath` to select a Python 3.12 installation explicitly.
@@ -28,16 +36,19 @@ The native SQLite database and local logs are stored in the ignored `.syncops/` 
 
 ## Start the Compose profile
 
-The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires Docker Engine 28.0+, Compose v2 and BuildKit support, plus PowerShell 7.4+ for the settings generator. Initialize new local secrets once.
+The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires Docker Engine 28.0+, the Docker Compose plugin and BuildKit. Open Ubuntu WSL2 and keep the terminal open while using the lab.
 
-```powershell
-pwsh -File scripts/Initialize-Compose.ps1
-docker compose up -d --build --wait
+```bash
+systemctl --user start docker
+docker context use rootless
+cd ~/SyncOps
+bash scripts/syncops.sh start compose
+bash scripts/syncops.sh urls compose
 ```
 
-Open [SyncOps on port 8080](http://127.0.0.1:8080/) and use the admin password from your local `.env`. The application, database and mock are on a private Compose network. Stop services with `docker compose down` and keep the named database volume. See [project status](PROJECT_STATUS.md) for current profile verification and Kubernetes lab progress.
+Open [SyncOps on port 8080](http://127.0.0.1:8080/) from Windows and use the admin password from the Ubuntu checkout's private `.env`. The database and mock stay on private Compose networks. Stop services with `bash scripts/syncops.sh stop compose`. The named volumes retain the data. See the [operator guide](docs/runbooks/local-operations.md) for backup, restore drills, demo batches and the Kubernetes profile.
 
-The optional [observability overlay](docs/runbooks/observability.md) adds local Prometheus, Grafana OSS and Alertmanager to the Compose profile.
+Use `bash scripts/syncops.sh start logs` for the full observability profile. Verified Windows loopback endpoints include [Grafana](http://127.0.0.1:3000/), [Prometheus](http://127.0.0.1:9090/) and [Alertmanager](http://127.0.0.1:9093/). Use a separate Grafana credential. Loki and Alloy collect worker logs without exposing their HTTP APIs to Windows. [Observability runbook](docs/runbooks/observability.md)
 
 ## Architecture
 
@@ -156,6 +167,7 @@ If the native launcher exits, inspect `.syncops/logs/`. Ports 5173, 8000 and 800
 - [Central worker log investigation](docs/runbooks/trace-worker-incident.md)
 - [PostgreSQL recovery and reliability drill](ops/postgres_reliability/README.md)
 - [Container supply chain](docs/supply-chain.md)
+- [Security risk register](docs/security-risk-register.md)
 - [Portfolio lifecycle walkthrough](docs/advanced-lab-demo.md)
 
 ## Project records

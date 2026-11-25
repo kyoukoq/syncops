@@ -1,6 +1,6 @@
 # Windows container lab activation
 
-The native SQLite profile runs independently. This runbook activates the Linux container path on a dedicated Ubuntu environment. It requires administrative Windows approval and a restart.
+The native SQLite profile runs independently. This runbook activates the Linux container path on a dedicated Ubuntu environment. Initial WSL activation may require administrative Windows approval and a restart. Skip activation when Ubuntu already reports WSL version 2.
 
 ## Activate WSL2
 
@@ -22,6 +22,6 @@ docker compose version
 docker info
 ```
 
-Use Docker Engine 28 or later and start the core profile using locally generated credentials. Check the Compose health state and use `scripts/smoke.py` with those credentials. Restart the Compose project and repeat the smoke check with the same PostgreSQL volume. Confirm the event history is present before enabling the metrics and central log overlays. Use a separate disposable project for forced failures or data loss.
+Use Docker Engine 28 or later. For a new dedicated installation, disable the rootful Docker system service before configuring the user daemon. Keep the rootless service on demand. Open an Ubuntu terminal, run `systemctl --user start docker`, select `rootless` with `docker context use rootless` and leave the Ubuntu terminal open. See the [operator guide](local-operations.md) for startup and stop commands and the [workstation report](../local-acceptance.md) for the versions and acceptance evidence.
 
 Open only the loopback application and dashboard addresses. Keep the Docker socket private and do not add users to the root-equivalent Docker group solely for this lab. In rootless setups, verify that the daemon can reach the loopback syslog port before treating the local logs overlay as verified.

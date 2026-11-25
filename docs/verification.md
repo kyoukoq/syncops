@@ -1,5 +1,7 @@
 # SyncOps MVP acceptance evidence
 
+See the separate [2026-11-25 local release acceptance report](local-acceptance.md) for WSL2 Docker, the local Compose console opened from Windows, and workstation measurements. The evidence below records the earlier Windows SQLite and hosted integration runs.
+
 The native Windows lab used a loopback API, a local SQLite database and synthetic CRM, ERP and TMS adapters. Run `afcaab34` exercised the live API, durable worker and mock destination. The suite created a dedicated integration, disabled it after the run and revoked all three test sessions.
 
 ## Scenario results

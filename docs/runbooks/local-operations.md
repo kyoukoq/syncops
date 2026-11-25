@@ -46,14 +46,15 @@ The Linux launcher generates mode-0600 settings if needed and retains existing s
 bash scripts/syncops.sh status compose
 bash scripts/syncops.sh diagnose logs
 bash scripts/syncops.sh demo compose
+bash scripts/syncops.sh demo compose portfolio-demo
 bash scripts/syncops.sh backup compose
 bash scripts/syncops.sh restore-drill compose
 bash scripts/syncops.sh stop compose
 ```
 
-The demo creates synthetic integrations and events through the API. The same request identities make reseeding safe. Use the [worker incident walkthrough](trace-worker-incident.md) to reproduce and inspect a fresh incident. The live database is preserved during seeding and stopping. The backup command writes a protected PostgreSQL archive with a readable catalog under `.syncops/backups/`. The restore drill runs with synthetic data, a new Compose project and a separate PostgreSQL volume. It measures restoration and records JSON evidence under `.syncops/backups/`. Follow the [recovery runbook](recovery.md) to investigate actual data loss and restore a user archive to an isolated target.
+The demo creates synthetic integrations and events through the API. Reuse a batch name to get the same event identities. Choose a fresh name to reset the demonstration state by appending new cases, including fresh dead letters. Prior events and audit history remain available. Use the [worker incident walkthrough](trace-worker-incident.md) to reproduce and inspect a fresh incident. The backup command writes a protected PostgreSQL archive with a readable catalog under `.syncops/backups/`. The restore drill runs with synthetic data, a new Compose project and a separate PostgreSQL volume. It measures restoration and records JSON evidence under `.syncops/backups/`. Follow the [recovery runbook](recovery.md) to investigate actual data loss and restore a user archive to an isolated target.
 
-After Windows restarts, open Ubuntu, start the local Docker daemon if needed, return to this checkout and run the selected `start` command. The same Compose volumes keep database and observability data. The launcher adds no startup tasks.
+After Windows restarts, open Ubuntu, start the local Docker daemon, return to this checkout and run the selected `start` command. Keep an Ubuntu terminal open while using the lab. WSL can stop idle distributions even while an internal systemd service is active. The same Compose volumes keep database and observability data. The launcher starts no host service automatically.
 
 ## Local Kubernetes and GitOps
 
