@@ -280,12 +280,18 @@ build_images() {
     docker build --build-context config=deploy -t "$2" -f deploy/frontend.Dockerfile frontend
 }
 
-load_images() {
+load_images() (
     local cluster=$1
     shift
-    docker pull postgres:17-bookworm
-    kind load docker-image --name "$cluster" "$@" postgres:17-bookworm
-}
+    local platform archive
+    platform=$(docker version --format '{{.Server.Os}}/{{.Server.Arch}}')
+    archive=$(mktemp)
+    trap 'rm -f -- "$archive"' EXIT
+    docker pull --platform "$platform" postgres:17-bookworm
+    # The Docker containerd store can retain index entries for blobs absent locally.
+    docker image save --platform "$platform" -o "$archive" "$@" postgres:17-bookworm
+    kind load image-archive --name "$cluster" "$archive"
+)
 
 init_namespaces() {
     local context=$1 target found
