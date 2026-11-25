@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.2.0](https://github.com/kyoukoq/syncops/releases/tag/v0.2.0) - 2026-11-25
 
 - Added local Windows and WSL2 operator commands, PostgreSQL backup and an isolated restore drill entry point.
 - Changed the backend image to supported CPython on Alpine and removed pip from the runtime. The security register tracks bundled-library and SQLite limitations.
@@ -14,6 +14,8 @@
 - Added opt-in Alloy and Loki incident tracing, isolated PostgreSQL crash and backup recovery drills, and replayable portfolio seed data.
 
 - Added an optional Compose observability overlay with verified live Prometheus metrics, Grafana dashboards and local Alertmanager recovery alerts.
+
+- Promoted the approved GHCR manifests to stable tags without rebuilding and verified both signed SBOM and provenance attestations. Recorded the Product Owner's lab-only risk decision and the remaining acceptance limitations.
 
 ## 0.1.0 — 2026-11-25
 

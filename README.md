@@ -4,6 +4,8 @@
 
 **A self-hosted integration reliability platform and DevOps engineering lab.**
 
+[SyncOps v0.2.0](https://github.com/kyoukoq/syncops/releases/tag/v0.2.0) is the stable Advanced DevOps Lab release. The Git tag identifies the tested application commit. Both GHCR `v0.2.0` tags resolve to the approved, tested image digests. [Release decision and exact image references](docs/releases/v0.2.0.md)
+
 When a logistics order update fails between a CRM, ERP and transport system, an operator needs to know what happened, whether the system will retry and how to recover without creating a duplicate. SyncOps makes that delivery lifecycle visible. It records synthetic events and attempts, ties investigation to stable correlation IDs and audits authorized recovery. The lab uses local services with synthetic data.
 
 ## What you can demonstrate
@@ -49,6 +51,8 @@ bash scripts/syncops.sh urls compose
 Open [SyncOps on port 8080](http://127.0.0.1:8080/) from Windows and use the admin password from the Ubuntu checkout's private `.env`. The database and mock stay on private Compose networks. Stop services with `bash scripts/syncops.sh stop compose`. The named volumes retain the data. See the [operator guide](docs/runbooks/local-operations.md) for backup, restore drills, demo batches and the Kubernetes profile.
 
 Use `bash scripts/syncops.sh start logs` for the full observability profile. Verified Windows loopback endpoints include [Grafana](http://127.0.0.1:3000/), [Prometheus](http://127.0.0.1:9090/) and [Alertmanager](http://127.0.0.1:9093/). Use a separate Grafana credential. Loki and Alloy collect worker logs without exposing their HTTP APIs to Windows. [Observability runbook](docs/runbooks/observability.md)
+
+The verified scope is a single Windows and WSL2 host, trusted local users, synthetic data, and loopback-only access. Live HTTPS Ingress was not run. Visual acceptance of the native Windows SQLite console remains unverified. [Workstation acceptance](docs/local-acceptance.md) · [Accepted residual risks](docs/security-risk-register.md)
 
 ## Architecture
 
