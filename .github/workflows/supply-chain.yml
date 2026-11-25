@@ -24,17 +24,32 @@ on:
         description: Publish and attest isolated candidate images from main
         type: boolean
         default: false
+      stable_tag:
+        description: Prepare stable GHCR tags for an approved version before GitHub publication
+        type: string
+      candidate_sha:
+        description: Full commit SHA of the approved candidate on main
+        type: string
+      backend_digest:
+        description: Approved backend digest including the sha256 prefix
+        type: string
+      frontend_digest:
+        description: Approved frontend digest including the sha256 prefix
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: assurance-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'release' }}
+  group: assurance-${{ github.event_name }}-${{ github.ref }}${{ inputs.stable_tag && format('-{0}', inputs.stable_tag) || '' }}
+  cancel-in-progress: ${{ github.event_name != 'release' && !inputs.stable_tag }}
 
 jobs:
   verify:
-    if: toJSON(github.event.repository.private) == 'false' && github.event_name != 'release' && !inputs.publish_candidate
+    if: >-
+      toJSON(github.event.repository.private) == 'false' &&
+      github.event_name != 'release' && !inputs.publish_candidate && !inputs.stable_tag &&
+      !inputs.candidate_sha && !inputs.backend_digest && !inputs.frontend_digest
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -47,7 +62,8 @@ jobs:
   publish:
     if: >-
       toJSON(github.event.repository.private) == 'false' &&
-      github.event_name == 'workflow_dispatch' && inputs.publish_candidate && github.ref == 'refs/heads/main'
+      github.event_name == 'workflow_dispatch' && inputs.publish_candidate && github.ref == 'refs/heads/main' &&
+      !inputs.stable_tag && !inputs.candidate_sha && !inputs.backend_digest && !inputs.frontend_digest
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -124,7 +140,12 @@ jobs:
   promote:
     if: >-
       toJSON(github.event.repository.private) == 'false' &&
-      github.event_name == 'release' && github.event.release.prerelease == false
+      ((github.event_name == 'release' && github.event.release.prerelease == false) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      (inputs.stable_tag || inputs.candidate_sha || inputs.backend_digest || inputs.frontend_digest)))
+    concurrency:
+      group: syncops-stable-image-${{ inputs.stable_tag || github.ref_name }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -141,39 +162,66 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_BODY: ${{ github.event.release.body }}
+          STABLE_TAG: ${{ inputs.stable_tag }}
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          BACKEND_DIGEST: ${{ inputs.backend_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          release_tag="$GITHUB_REF_NAME"
+          candidate_sha="$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            release_tag="$STABLE_TAG"
+            candidate_sha="$CANDIDATE_SHA"
+            [[ "$BACKEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ && "$FRONTEND_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+            declare -A approved=([backend]="$BACKEND_DIGEST" [frontend]="$FRONTEND_DIGEST")
+          fi
+          [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$candidate_sha" refs/remotes/origin/main
           resolve_digest() {
-            docker buildx imagetools inspect "$1" |
-              sed -nE 's/^Digest:[[:space:]]*(sha256:[0-9a-f]{64})[[:space:]]*$/\1/p'
+            local result
+            if result=$(docker buildx imagetools inspect "$1" 2>&1); then
+              sed -nE 's/^Digest:[[:space:]]*(sha256:[0-9a-f]{64})[[:space:]]*$/\1/p' <<< "$result"
+            elif [[ "$result" == "ERROR: $1: not found" ]]; then
+              return 3
+            else
+              printf '%s\n' "$result" >&2
+              return 1
+            fi
           }
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
-          declare -A candidates
+          declare -A candidates missing
           for component in backend frontend; do
             image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
-            digest=$(resolve_digest "$image:candidate-$GITHUB_SHA")
+            digest=$(resolve_digest "$image:candidate-$candidate_sha")
             [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
-            grep -Fx -- "$image@$digest" <<< "$RELEASE_BODY" >/dev/null
+            if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+              [[ "$digest" == "${approved[$component]}" ]]
+            else
+              grep -Fx -- "$image@$digest" <<< "$RELEASE_BODY" >/dev/null
+            fi
             candidates[$component]=$digest
             for predicate in https://slsa.dev/provenance/v1 https://cyclonedx.org/bom; do
               gh attestation verify "oci://$image@$digest" --repo "$GITHUB_REPOSITORY" \
                 --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/supply-chain.yml" \
-                --source-ref refs/heads/main --source-digest "$GITHUB_SHA" \
+                --source-ref refs/heads/main --source-digest "$candidate_sha" \
                 --deny-self-hosted-runners --predicate-type "$predicate"
             done
-            if existing=$(resolve_digest "$image:$GITHUB_REF_NAME" 2>/dev/null); then
+            if existing=$(resolve_digest "$image:$release_tag"); then
               [[ "$existing" == "$digest" ]]
+            elif [[ "$?" == 3 ]]; then
+              missing[$component]=1
+            else
+              exit 1
             fi
           done
           for component in backend frontend; do
             image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
             digest=${candidates[$component]}
-            if ! resolve_digest "$image:$GITHUB_REF_NAME" >/dev/null 2>&1; then
-              docker buildx imagetools create --prefer-index=false --tag "$image:$GITHUB_REF_NAME" "$image@$digest"
+            if [[ "${missing[$component]:-}" == 1 ]]; then
+              docker buildx imagetools create --prefer-index=false --tag "$image:$release_tag" "$image@$digest"
             fi
-            [[ "$(resolve_digest "$image:$GITHUB_REF_NAME")" == "$digest" ]]
+            [[ "$(resolve_digest "$image:$release_tag")" == "$digest" ]]
             printf '%s\n' "$image@$digest" >> "$GITHUB_STEP_SUMMARY"
           done
       - name: Close the registry session
