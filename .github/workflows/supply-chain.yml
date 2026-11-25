@@ -47,8 +47,7 @@ jobs:
   publish:
     if: >-
       toJSON(github.event.repository.private) == 'false' &&
-      ((github.event_name == 'release' && github.event.release.prerelease == false) ||
-       (github.event_name == 'workflow_dispatch' && inputs.publish_candidate && github.ref == 'refs/heads/main'))
+      github.event_name == 'workflow_dispatch' && inputs.publish_candidate && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -61,18 +60,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Verify version and main ancestry
+      - name: Set immutable candidate version
         shell: bash
         run: |
           git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            [[ "$GITHUB_REF" == "refs/heads/main" ]]
-            version="candidate-$GITHUB_SHA"
-          else
-            [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-            version="$GITHUB_REF_NAME"
-          fi
-          printf 'SYNCOPS_IMAGE_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
+          [[ "$GITHUB_REF" == "refs/heads/main" ]]
+          printf 'SYNCOPS_IMAGE_VERSION=candidate-%s\n' "$GITHUB_SHA" >> "$GITHUB_ENV"
       - name: Build and verify the images before publication
         run: bash scripts/container-assurance.sh
       - name: Publish the verified local images
@@ -124,6 +117,65 @@ jobs:
           subject-digest: ${{ steps.publish.outputs.frontend_digest }}
           sbom-path: ${{ runner.temp }}/syncops-assurance/frontend.cdx.json
           push-to-registry: true
+      - name: Close the registry session
+        if: always()
+        run: docker logout ghcr.io
+
+  promote:
+    if: >-
+      toJSON(github.event.repository.private) == 'false' &&
+      github.event_name == 'release' && github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+      attestations: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Promote verified candidate digests
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          resolve_digest() {
+            docker buildx imagetools inspect "$1" |
+              sed -nE 's/^Digest:[[:space:]]*(sha256:[0-9a-f]{64})[[:space:]]*$/\1/p'
+          }
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          declare -A candidates
+          for component in backend frontend; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
+            digest=$(resolve_digest "$image:candidate-$GITHUB_SHA")
+            [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+            grep -Fx -- "$image@$digest" <<< "$RELEASE_BODY" >/dev/null
+            candidates[$component]=$digest
+            for predicate in https://slsa.dev/provenance/v1 https://cyclonedx.org/bom; do
+              gh attestation verify "oci://$image@$digest" --repo "$GITHUB_REPOSITORY" \
+                --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/supply-chain.yml" \
+                --source-ref refs/heads/main --source-digest "$GITHUB_SHA" \
+                --deny-self-hosted-runners --predicate-type "$predicate"
+            done
+            if existing=$(resolve_digest "$image:$GITHUB_REF_NAME" 2>/dev/null); then
+              [[ "$existing" == "$digest" ]]
+            fi
+          done
+          for component in backend frontend; do
+            image="ghcr.io/${GITHUB_REPOSITORY,,}/$component"
+            digest=${candidates[$component]}
+            if ! resolve_digest "$image:$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              docker buildx imagetools create --prefer-index=false --tag "$image:$GITHUB_REF_NAME" "$image@$digest"
+            fi
+            [[ "$(resolve_digest "$image:$GITHUB_REF_NAME")" == "$digest" ]]
+            printf '%s\n' "$image@$digest" >> "$GITHUB_STEP_SUMMARY"
+          done
       - name: Close the registry session
         if: always()
         run: docker logout ghcr.io
