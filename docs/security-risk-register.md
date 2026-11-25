@@ -1,12 +1,23 @@
 # v0.2.0 security risk register
 
-Reviewed on 2026-11-25. Review again before publishing the stable release, upon a relevant upstream security update, and by 2026-12-02 if the release remains pending. This assessment covers an amd64 lab deployment with synthetic data, trusted workstation users, and loopback-only service access. Short-lived GitHub-hosted CI runs and image publication are separate from local runtime acceptance.
+Reviewed and accepted by the Product Owner on 2026-11-25. Next review is due by 2026-12-02, or sooner if a relevant upstream security update, deployed digest, or exposure changes. The [release decision](releases/v0.2.0.md) records the exact artifacts, acceptance scope, and verification.
 
-Stable release requires an exact release-candidate scan, remediation and retesting of material findings with supported fixes, and explicit Product Owner acceptance of the remaining material risks. Record the accepted risks, exact image digests, applicable lab boundaries, decision date, and next review in the release decision. Approval is pending.
+The acceptance covers a single-host Windows and WSL2 engineering lab for personal portfolio and educational demonstrations, with synthetic data, trusted local users, and loopback-only service access. Public internet exposure, corporate production, real customer data, and multi-tenant use are outside the approval.
 
-## Evidence
+## Approved image evidence
 
-Fresh Trivy 0.76.2 scans ran locally in Ubuntu WSL2 against the public `linux/amd64` candidate digests with remote OCI access. The vulnerability DB was updated at `2026-11-25T07:11:44Z`. Both OCI configurations identify source revision `305e2b90398a76a43b4790c13bfb896994c885d1`.
+Both public `linux/amd64` image manifests are bound to source commit `2884aeb5c8b72610754b430b799046be43f33825`. Trivy 0.76.2 scanned these exact digests remotely on 2026-11-25 at 13:40 UTC using the vulnerability database updated at `2026-11-25T07:11:44Z`. GitHub CLI verified the CycloneDX SBOM and SLSA provenance for both digests against that source commit, the `refs/heads/main` source ref, and the repository's publication workflow. [Candidate publication and attestations](https://github.com/kyoukoq/syncops/actions/runs/45625309429)
+
+| Image digest | Runtime | Trivy findings across all severities | Raw report SHA-256 |
+| --- | --- | --- | --- |
+| `ghcr.io/kyoukoq/syncops/backend@sha256:55d042c4913f63e33169dd04d8f63c56e132997bd586632ab1587736ee498ebf` | Alpine 3.24.4 and CPython 3.12.16 | 0 across OS and Python packages | `dd056f73a42a207c68ed06cba39c9aaf362bdb48c5d897c21a638165fe42e9ff` |
+| `ghcr.io/kyoukoq/syncops/frontend@sha256:660eb423200a0bf1c5436e8b58a2a9d44cb4e6ca1c275a5133c38f3e54655d20` | Alpine 3.24.4 | 0 across inventoried OS packages | `3ee3bf79557420d51e3dc99ebf6d9603c26753314622e3b9c769e1fe469f495c` |
+
+Zero scan findings describe the scanner's package coverage and database at the time of the check. The accepted residual risks below include bundled libraries and the native SQLite runtime.
+
+## Historical candidate evidence
+
+The previous Trivy 0.76.2 comparison scanned public `linux/amd64` candidate images from source revision `305e2b90398a76a43b4790c13bfb896994c885d1`. It used the same vulnerability database timestamp.
 
 | Candidate image | Base and configured user | HIGH rows | Distinct CVEs | CRITICAL rows | Rows with a fix |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -28,7 +39,7 @@ The fresh dependency and secret checks below ran against the engineering checkou
 
 Historical [Container assurance run 45511484050](https://github.com/kyoukoq/syncops/actions/runs/45511484050) recorded 53 HIGH rows, zero CRITICAL rows and zero rows with a fix for the backend, and no HIGH or CRITICAL rows for the frontend. The 53 rows describe 13 distinct CVEs. Trivy matches Debian binary packages to source security records. One CVE can appear on several installed packages built from the same source. Four `util-linux` CVEs account for 36 of those rows. [Trivy vulnerability scanner](https://trivy.dev/docs/latest/scanner/vulnerability/)
 
-[Candidate assurance run 45512578781](https://github.com/kyoukoq/syncops/actions/runs/45512578781) published the candidate references below and generated GitHub provenance and CycloneDX attestations. Provenance binds a build to an artifact digest and an identified build workflow. SBOMs describe inventoried components. GitHub CLI 2.105.0 verified both predicate types for each candidate digest against the publication workflow identity at refs/heads/main. Repeat verification on the release digests. See [supply-chain verification](supply-chain.md).
+[Candidate assurance run 45512578781](https://github.com/kyoukoq/syncops/actions/runs/45512578781) published the historical references above and generated GitHub provenance and CycloneDX attestations. [Supply-chain verification](supply-chain.md)
 
 ## Alpine remediation candidate
 
@@ -60,7 +71,7 @@ Severity is the HIGH rating emitted by both Trivy scans. Advisory severity and t
 
 - **Image and deployment controls.** The [backend](../deploy/backend.Dockerfile) and [frontend](../deploy/frontend.Dockerfile) images set non-root users. [Compose](../compose.yaml) and the [Helm security helpers](../charts/syncops/templates/_helpers.tpl) apply read-only application root filesystems, drop all capabilities, prevent privilege escalation, and bound resources. Helm disables workload service account token mounting and uses RuntimeDefault seccomp. Compose publishes the web interface on loopback and keeps DB, API, mock and worker on a private network. Helm has targeted ingress policies for API, mock and DB. Confirm policy enforcement and loopback binding in the actual local acceptance environment.
 - **Request and credential controls.** The [API](../backend/syncops/api.py) and [auth module](../backend/syncops/auth.py) enforce authenticated roles and authenticated webhook intake. Passwords are salted and scrypt-hashed, session tokens are hashed in the database, and login work is concurrency-bounded. The [worker](../backend/syncops/worker.py) uses an operator-configured mock origin, with redirect and proxy-environment handling disabled. The [web proxy](../deploy/nginx.conf) uses a fixed upstream, body-size cap and security headers. Use distinct credentials per environment, keep them out of Git and diagnostic output, and limit host and cluster access to trusted operators.
-- **R1, image CVEs without available stable fixes.** Applicability is assessed against configured entry points, privileges, mounts and peer access. Installed vulnerable code remains relevant when these boundaries change or another foothold exists. Keep loopback access and the synthetic-data scope. A Docker, NodePort, ingress, port-forward or QUIC exposure change reopens the assessment. Product Owner approval is required before stable publication of an affected digest.
+- **R1, runtime and bundled image libraries.** Applicability is assessed against configured entry points, privileges, mounts and peer access. The approved Alpine image still requires review of SQLite and Psycopg's bundled libraries. Keep loopback access and the synthetic-data scope. A Docker, NodePort, ingress, port-forward or QUIC exposure change reopens the assessment. A rollback to the historical Debian image would require a separate decision.
 - **R2, native SQLite.** The original Windows project venv reported CPython `3.12.14`, SQLite `3.53.1`, and `ENABLE_FTS5` enabled. Those SQLite advisories merit independent review even though SyncOps does not implement FTS5 or changeset handlers. Keep the database and all backups local, open only trusted project-owned SQLite files, and verify the native profile on a patched Python distribution after a compatible SQLite update. A separate SHA-verified [Astral Windows build](https://github.com/astral-sh/python-build-standalone/releases/tag/20261124) of CPython `3.12.16` reported SQLite `3.54.1` and passed all 15 backend regression tests with one existing TestClient deprecation warning. The test used isolated files and left the active profile intact. Plan the Windows runtime update before accepting the profile as patched. This also picks up [security changes in CPython 3.12.16](https://www.python.org/downloads/release/python-31216/).
 - **R3, lab trust boundary.** The application DB role owns its database so that migration and runtime operations can share one identity. A compromise of a DB-connected workload can affect events and audit history. Loopback HTTP also assumes trusted local principals. Continue using local synthetic data, restrict access to Docker and Kubernetes administration, and treat application audit records as mutable database records. A public or multi-tenant deployment would require further credential, TLS, migration/runtime role, network and audit controls.
 - **R4, scan and release scope.** The candidate scan covers the two project images at one architecture. The database, observability, Argo CD, Kubernetes node, and host operating-system packages have separate update and evidence requirements. [Container assurance](../.github/workflows/supply-chain.yml) pins action commits, disables checkout credential persistence, gives routine jobs read-only repository access, and scopes registry and attestation writes to the trusted publication job. Candidate publication provides pre-release evidence. Reassess the exact final source revision and rebuilt image digests before publishing, especially because base OS package upgrades resolve against the distribution repository at build time.
@@ -77,11 +88,11 @@ Run the remote image check from an isolated report directory on Linux with [Triv
 
 ```bash
 trivy image --download-db-only --cache-dir cache
-for image in backend@sha256:a8bd16b80fbd467507ceb0dc27756a802bb2c889dfd020ce3a0bd792c71acbe2 \
-  frontend@sha256:490f35455de5d2e6aac7259cf2dfe061381c3e0b39f6052e313bae529ac80cb0; do
+for image in backend@sha256:55d042c4913f63e33169dd04d8f63c56e132997bd586632ab1587736ee498ebf \
+  frontend@sha256:660eb423200a0bf1c5436e8b58a2a9d44cb4e6ca1c275a5133c38f3e54655d20; do
   component="${image%@*}"
   trivy image --cache-dir cache --image-src remote --platform linux/amd64 \
-    --scanners vuln --severity HIGH,CRITICAL --list-all-pkgs --format json \
+    --scanners vuln --list-all-pkgs --format json \
     --output "$component-candidate.json" --no-progress --timeout 8m \
     "ghcr.io/kyoukoq/syncops/$image"
 done
@@ -93,10 +104,14 @@ To verify the attestations, use GitHub CLI and restrict the signing identity to 
 gh attestation verify "oci://ghcr.io/kyoukoq/syncops/$image" \
   --repo kyoukoq/syncops \
   --signer-workflow kyoukoq/syncops/.github/workflows/supply-chain.yml \
+  --source-ref refs/heads/main --source-digest 2884aeb5c8b72610754b430b799046be43f33825 \
+  --deny-self-hosted-runners \
   --predicate-type https://slsa.dev/provenance/v1
 gh attestation verify "oci://ghcr.io/kyoukoq/syncops/$image" \
   --repo kyoukoq/syncops \
   --signer-workflow kyoukoq/syncops/.github/workflows/supply-chain.yml \
+  --source-ref refs/heads/main --source-digest 2884aeb5c8b72610754b430b799046be43f33825 \
+  --deny-self-hosted-runners \
   --predicate-type https://cyclonedx.org/bom
 ```
 

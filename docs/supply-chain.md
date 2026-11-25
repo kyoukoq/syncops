@@ -10,7 +10,9 @@ bash scripts/container-assurance.sh
 
 The workflow uses standard GitHub-hosted runners for the public repository. Run the candidate publication on `main` to create immutable `candidate-<commit-sha>` tags before declaring a stable release. It scans the images before pushing and records the content digests. GitHub attestations bind provenance and SBOMs to those digests.
 
-For a stable release, target the same main commit and include both fully qualified `ghcr.io/...@sha256:...` image references, each on its own line in the release notes. The stable workflow checks both references against the candidate tags and verifies the provenance and SBOM for the source commit. It copies the exact registry manifests to the stable version tags and confirms identical digests. An existing stable tag must already point to the approved digest.
+After the Product Owner accepts the exact artifacts, dispatch `supply-chain.yml` on `main` with `stable_tag`, `candidate_sha`, `backend_digest`, and `frontend_digest`. The promotion job checks the candidate tags and both attestations before copying the original manifests. It verifies both resulting stable tags by digest and rejects conflicting existing tags. This path runs without image builds.
+
+Independently resolve both public stable tags before publishing the GitHub release. Target the approved candidate commit and include both fully qualified `ghcr.io/...@sha256:...` image references, each on its own line in the release notes. The published release event repeats the digest and attestation checks.
 
 The Product Owner must explicitly accept material residual risks for the exact proposed image digests before publishing a stable release. Review individual CVEs, affected runtime components and upstream fixes in the [security risk register](security-risk-register.md).
 
