@@ -14,7 +14,8 @@ usage() {
     cat <<'EOF'
 SyncOps local operations (Linux checkout)
   bash scripts/syncops.sh start|stop|status|urls|diagnose compose|observability|logs|kind
-  bash scripts/syncops.sh demo|backup|restore-drill compose
+  bash scripts/syncops.sh demo compose [batch]
+  bash scripts/syncops.sh backup|restore-drill compose
   bash scripts/syncops.sh open|urls kind [staging|production-lab]
   bash scripts/syncops.sh verify kind|gitops
 
@@ -245,7 +246,7 @@ compose_action() {
             need curl python3
             origin=$(compose_origin web 8080) || fail "The web service needs a published loopback port."
             http_ok "$origin/healthz" || fail "The Compose web health check failed."
-            env NO_PROXY='*' no_proxy='*' python3 scripts/seed_demo.py --base-url "$origin" --credentials "$settings" ;;
+            env NO_PROXY='*' no_proxy='*' python3 scripts/seed_demo.py --base-url "$origin" --credentials "$settings" "${demo_options[@]}" ;;
         backup)
             compose_backup ;;
     esac
@@ -308,8 +309,8 @@ owned_node() {
 }
 
 start_kind() {
-    local id target revision backend frontend
-    need pwsh git
+    local id target backend frontend backend_id frontend_id
+    need pwsh
     if [[ ! -e "$state/kind-local.id" && ! -L "$state/kind-local.id" ]]; then
         [[ -z $(kind_nodes "$kind_name") ]] || fail "The cluster name $kind_name is already in use."
         [[ ! -e "$KUBECONFIG" && ! -L "$KUBECONFIG" ]] || fail "The launcher kind kubeconfig already exists."
@@ -333,10 +334,15 @@ start_kind() {
     done
     kube --request-timeout=5s get --raw /readyz >/dev/null
     kube wait --for=condition=Ready node --all --timeout=120s
-    revision=$(git rev-parse --short=12 HEAD)
-    backend="syncops/backend:lab-$revision"
-    frontend="syncops/frontend:lab-$revision"
-    build_images "$backend" "$frontend"
+    build_images syncops/backend:lab-build syncops/frontend:lab-build
+    backend_id=$(docker image inspect syncops/backend:lab-build --format '{{.Id}}')
+    frontend_id=$(docker image inspect syncops/frontend:lab-build --format '{{.Id}}')
+    [[ "$backend_id" =~ ^sha256:[0-9a-f]{64}$ && "$frontend_id" =~ ^sha256:[0-9a-f]{64}$ ]] ||
+        fail "Expected content identifiers for the built images."
+    backend="syncops/backend:lab-${backend_id#sha256:}"
+    frontend="syncops/frontend:lab-${frontend_id#sha256:}"
+    docker tag syncops/backend:lab-build "$backend"
+    docker tag syncops/frontend:lab-build "$frontend"
     load_images "$kind_name" "$backend" "$frontend"
     init_namespaces "$kind_context"
     for target in syncops-staging syncops-production-lab; do
@@ -452,9 +458,13 @@ if [[ "$#" == 0 || "$1" == help || "$1" == --help ]]; then usage; exit; fi
 action=$1
 profile=$2
 environment=${3:-staging}
+demo_options=()
 if [[ "$#" == 3 ]]; then
     case "$action/$profile/$environment" in
         open/kind/staging|open/kind/production-lab|urls/kind/staging|urls/kind/production-lab) ;;
+        demo/compose/*)
+            [[ "$3" =~ ^[a-z][a-z0-9-]{0,31}$ ]] || fail "Invalid demo batch name."
+            demo_options=(--batch "$3") ;;
         *) fail "Unknown action, profile or environment." ;;
     esac
 fi

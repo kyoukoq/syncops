@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import time
 from pathlib import Path
 from urllib.error import HTTPError
@@ -80,7 +81,7 @@ CASES = (
 TERMINAL = {"succeeded", "dead_letter"}
 
 
-def seed(base: str, password: str) -> None:
+def seed(base: str, password: str, batch: str | None = None) -> None:
     opener = build_opener(ProxyHandler({}), NoRedirect())
     token = ""
 
@@ -126,17 +127,20 @@ def seed(base: str, password: str) -> None:
 
         created = []
         for index, (route, event_type, scenario, payload) in enumerate(CASES, start=1):
+            reference = f"SYNCOPS-LAB-{index:02d}"
+            key = f"syncops-portfolio-v02-{index:02d}"
+            if batch:
+                reference = f"SYNCOPS-LAB-{batch}-{index:02d}"
+                key = f"syncops-portfolio-v02-{batch}-{index:02d}"
             event = {
                 "integration_id": route_ids[route],
                 "event_type": event_type,
                 "scenario": scenario,
-                "payload": {**payload, "reference": f"SYNCOPS-LAB-{index:02d}"},
+                "payload": {**payload, "reference": reference},
             }
             if scenario == "http_429":
                 event["failure_count"] = 1
-            created.append(
-                request("/events", event, f"syncops-portfolio-v02-{index:02d}")["id"]
-            )
+            created.append(request("/events", event, key)["id"])
 
         deadline = time.monotonic() + 30
         results = []
@@ -162,7 +166,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--credentials", type=Path, required=True)
+    parser.add_argument("--batch", help="Append a fresh named delivery batch and retain existing history.")
     args = parser.parse_args()
+    if args.batch is not None and not re.fullmatch(r"[a-z][a-z0-9-]{0,31}", args.batch):
+        parser.error("Use a batch name of 1–32 lowercase letters, digits or hyphens, starting with a letter.")
     target = urlsplit(args.base_url)
     if (
         target.scheme != "http"
@@ -173,7 +180,11 @@ def main() -> None:
         or target.fragment
     ):
         parser.error("Use an HTTP loopback origin.")
-    seed(f"{args.base_url.rstrip('/')}/api/v1", read_admin_password(args.credentials))
+    seed(
+        f"{args.base_url.rstrip('/')}/api/v1",
+        read_admin_password(args.credentials),
+        args.batch,
+    )
 
 
 if __name__ == "__main__":
