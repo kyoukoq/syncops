@@ -78,6 +78,7 @@ If the native launcher exits, inspect `.syncops/logs/`. Ports 5173, 8000 and 800
 
 - [Windows container host activation](docs/runbooks/windows-container-host.md)
 - [Helm deployment and Kubernetes lab](deploy/kubernetes/README.md)
+- [Argo CD promotion and rollback lab](deploy/gitops/README.md)
 - [Central worker log investigation](docs/runbooks/trace-worker-incident.md)
 - [PostgreSQL recovery and reliability drill](ops/postgres_reliability/README.md)
 - [Container supply chain](docs/supply-chain.md)

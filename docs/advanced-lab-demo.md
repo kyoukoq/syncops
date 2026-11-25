@@ -7,7 +7,7 @@ Use one disposable environment and synthetic operations. Follow the evidence for
 | Code change and pull request | Open the container assurance PR and inspect the replacement of the vulnerable runtime base. [PR #7](https://github.com/kyoukoq/syncops/pull/7) |
 | CI and security | Show Compose and Chromium regression checks, redacted history scanning, non-root image checks, Trivy output and CycloneDX generation. The latest frontend scan found zero high or critical findings. The backend reported 53 findings with no fixes in the scan database. [Container assurance](https://github.com/kyoukoq/syncops/actions/runs/45511484050) |
 | Container image | Show the verified GHCR candidate digest and its provenance and SBOM attestations. Both candidates support anonymous manifest access. [Candidate publication](https://github.com/kyoukoq/syncops/actions/runs/45512578781) |
-| GitOps deployment | Use a verified staging revision, immutable image digests and controlled production-lab promotion when the Argo CD gate is available. |
+| GitOps deployment | Show Argo CD self-healing staging drift, accepting a healthy staged Git tree for promotion and restoring service after reverting an unavailable-image revision. [Hosted GitOps](https://github.com/kyoukoq/syncops/actions/runs/45513353704) |
 | Monitoring and incident | Submit a temporary outage in Failure Simulation. Copy the correlation ID, show the worker retry and recovery in Loki and compare the application record and Prometheus dashboard. [Hosted log trace](https://github.com/kyoukoq/syncops/actions/runs/45511230280) |
 | Recovery and measurements | Run the isolated PostgreSQL drill. Compare the pre-backup data with the restored fingerprints, observe the effect of one lost post-backup write, and demonstrate a healthy new delivery. [Recovery drill](https://github.com/kyoukoq/syncops/actions/runs/45511422619) |
 
@@ -26,7 +26,7 @@ flowchart LR
     Logs --> Operator
 ```
 
-The diagram shows the target lifecycle. The status record distinguishes hosted evidence from Windows and release gates. [Project status](../PROJECT_STATUS.md)
+The lifecycle has been demonstrated across isolated hosted workflows. The status record distinguishes that evidence from Windows installation and release gates. [Project status](../PROJECT_STATUS.md)
 
 ## Seed the native demo
 

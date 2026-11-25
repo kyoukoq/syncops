@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added verified Helm deployment and Argo CD staging, production-lab promotion, drift reconciliation and Git revert recovery.
+- Expanded hosted Chromium acceptance and fixed a misleading integration selector while its options load.
+
 - Added secured application builds, redacted Git history scanning, Trivy vulnerability checks and CycloneDX SBOM generation.
 - Published verified GHCR candidate images with provenance and SBOM attestations.
 - Added opt-in Alloy and Loki incident tracing, isolated PostgreSQL crash and backup recovery drills, and replayable portfolio seed data.
