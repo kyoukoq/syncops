@@ -2,7 +2,7 @@
 set -euo pipefail
 umask 077
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."
-root=$PWD
+root=$(pwd -P)
 state="$root/.syncops"
 settings="$root/.env"
 project=syncops
@@ -43,8 +43,10 @@ prepare_linux() {
 
 private_path() {
     local path=$1 type=$2 mode=$3
-    [[ ! -L "$path" && -O "$path" ]] && { [[ "$type" == d && -d "$path" ]] || [[ "$type" == f && -f "$path" ]]; } ||
+    if [[ -L "$path" || ! -O "$path" || ( "$type" == d && ! -d "$path" ) ||
+        ( "$type" == f && ! -f "$path" ) ]]; then
         fail "Expected an owned, non-symlink path: $path"
+    fi
     [[ $(stat -c '%a' "$path") == "$mode" ]] || fail "Expected mode $mode: $path"
 }
 
@@ -317,12 +319,20 @@ start_kind() {
         (set -o noclobber; printf '%s\n' "$id" >"$state/kind-local.id")
     else
         id=$(owned_node)
+        private_path "$KUBECONFIG" f 600
         if [[ $(docker inspect --type container --format '{{.State.Running}}' "$id") != true ]]; then
             docker start "$id" >/dev/null
+            kind export kubeconfig --name "$kind_name" --kubeconfig "$KUBECONFIG"
         fi
     fi
     private_path "$KUBECONFIG" f 600
-    kube --request-timeout=10s wait --for=condition=Ready node --all --timeout=120s
+    local attempt
+    for attempt in {1..20}; do
+        if kube --request-timeout=3s get --raw /readyz >/dev/null 2>&1; then break; fi
+        sleep 2
+    done
+    kube --request-timeout=5s get --raw /readyz >/dev/null
+    kube wait --for=condition=Ready node --all --timeout=120s
     revision=$(git rev-parse --short=12 HEAD)
     backend="syncops/backend:lab-$revision"
     frontend="syncops/frontend:lab-$revision"
