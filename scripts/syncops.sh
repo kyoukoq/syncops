@@ -339,6 +339,9 @@ start_kind() {
         sleep 2
     done
     kube --request-timeout=5s get --raw /readyz >/dev/null
+    if [[ $(kube get node "$kind_name-control-plane" -o 'jsonpath={.spec.unschedulable}') == true ]]; then
+        kube uncordon "$kind_name-control-plane"
+    fi
     kube wait --for=condition=Ready node --all --timeout=120s
     build_images syncops/backend:lab-build syncops/frontend:lab-build
     backend_id=$(docker image inspect syncops/backend:lab-build --format '{{.Id}}')
@@ -376,6 +379,14 @@ kind_action() {
             fi
             local id
             id=$(owned_node)
+            if [[ $(docker inspect --type container --format '{{.State.Running}}' "$id") != true ]]; then
+                printf 'The owned kind node is already stopped. Its data is retained.\n'
+                return
+            fi
+            private_path "$KUBECONFIG" f 600
+            kube --request-timeout=20s drain "$kind_name-control-plane" \
+                --pod-selector 'app.kubernetes.io/name=syncops,app.kubernetes.io/instance=syncops' \
+                --ignore-daemonsets --delete-emptydir-data --timeout=120s
             docker stop --timeout 75 "$id" >/dev/null
             printf 'Stopped the owned kind node. Its data is retained.\n' ;;
         status|diagnose)
