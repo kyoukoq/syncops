@@ -36,7 +36,9 @@ trap close_forward EXIT
 smoke() {
     local password port base_url
     password=$(kube get secret syncops-api-auth -o 'jsonpath={.data.admin-password}' | base64 -d)
-    echo "::add-mask::$password"
+    if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+        echo "::add-mask::$password"
+    fi
     forward_log=$(mktemp)
     kubectl --context "$context" --namespace "$namespace" port-forward \
         --address 127.0.0.1 svc/syncops-web :8080 >"$forward_log" 2>&1 &

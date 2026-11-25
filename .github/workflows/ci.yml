@@ -37,6 +37,11 @@ jobs:
       - run: python -m ruff check .
       - run: python -m pytest -q
       - run: python -m pip check
+      - name: Test local operator and reliability guards
+        working-directory: .
+        run: |
+          bash -n scripts/syncops.sh
+          python -m unittest scripts.tests.test_syncops_launcher ops.postgres_reliability.test_reliability
       - name: Audit backend runtime dependencies
         run: |
           python -m pip install pip-audit==2.10.0
