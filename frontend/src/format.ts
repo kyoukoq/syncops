@@ -20,10 +20,19 @@ export const systems: Record<System, string> = { crm: 'Mock CRM', erp: 'Mock ERP
 export const roleLabels = { admin: 'Administrator', operator: 'Operator', viewer: 'Viewer' };
 
 export const eventTypes = [
-  'company.created', 'contact.created', 'customer.updated', 'account.synced', 'order.created', 'shipment.updated',
+  'company.created', 'contact.created', 'customer.updated', 'account.synced', 'order.created',
+  'shipment.created', 'shipment.updated',
 ];
 
-const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' });
+const formatter = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+  timeZoneName: 'shortOffset',
+});
 const numberFormatter = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
 
 export function time(value: string | number | null | undefined): string {

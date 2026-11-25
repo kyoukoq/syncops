@@ -41,3 +41,21 @@ def test_limits_and_no_credential_echo(api):
     assert invalid not in response.text
     response = api.post("/api/v1/auth/login", json={"username": "admin", "password": "A" * 70000})
     assert response.status_code == 413
+
+
+def test_submit_shipment_creation(api):
+    headers = {**login(api), "Idempotency-Key": "shipment-creation"}
+    integrations = api.get("/api/v1/integrations", headers=headers).json()
+    integration = next(item for item in integrations if item["source"] == "tms")
+    response = api.post(
+        "/api/v1/events",
+        json={
+            "integration_id": integration["id"],
+            "event_type": "shipment.created",
+            "payload": {"shipment": "LAB-S112"},
+        },
+        headers=headers,
+    )
+    assert response.status_code == 202
+    event = api.get(f"/api/v1/events/{response.json()['id']}", headers=headers)
+    assert event.json()["event_type"] == "shipment.created"

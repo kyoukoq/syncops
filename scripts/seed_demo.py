@@ -70,6 +70,12 @@ CASES = (
         "http_422",
         {"shipment": "LAB-S111", "status": "unknown_code"},
     ),
+    (
+        2,
+        "shipment.created",
+        "success",
+        {"shipment": "LAB-S112", "order": "LAB-2403", "service": "regional freight"},
+    ),
 )
 TERMINAL = {"succeeded", "dead_letter"}
 
