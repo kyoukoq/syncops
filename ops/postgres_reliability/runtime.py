@@ -11,7 +11,6 @@ from pathlib import Path
 COMPOSE_FILE = Path(__file__).with_name("compose.yaml").resolve()
 LABEL = "io.syncops.reliability.run_id"
 PROJECT_LABEL = "com.docker.compose.project"
-DOCKER = ("docker", "--context", "default")
 CONTAINER_ID = re.compile(r"^[0-9a-f]{12,64}$")
 
 
@@ -20,7 +19,8 @@ class LabError(RuntimeError):
 
 
 class Lab:
-    def __init__(self, scratch: Path):
+    def __init__(self, scratch: Path, *, docker_context: str = "default"):
+        self.docker_context = docker_context
         self.run_id = secrets.token_hex(6)
         self.project = f"syncops-pg-lab-{self.run_id}"
         self.image = f"syncops/postgres-lab:{self.run_id}"
@@ -56,7 +56,7 @@ class Lab:
     def command(self, *args, timeout=30, stdin=None, stdout=None, operation):
         try:
             result = subprocess.run(
-                (*DOCKER, *args),
+                ("docker", "--context", self.docker_context, *args),
                 env={**self.env, "SYNCOPS_LAB_DATABASE": self.database},
                 stdin=stdin if stdin is not None else subprocess.DEVNULL,
                 stdout=stdout if stdout is not None else subprocess.PIPE,
@@ -116,7 +116,7 @@ class Lab:
         endpoint = self.command(
             "context",
             "inspect",
-            "default",
+            self.docker_context,
             "--format",
             "{{.Endpoints.docker.Host}}",
             operation="inspect Docker endpoint",
@@ -126,7 +126,7 @@ class Lab:
             "npipe:////./pipe/dockerDesktopLinuxEngine",
         }:
             raise LabError(
-                "The default Docker context must use a local Unix socket or Windows named pipe."
+                "Select a Docker context using a local Unix socket or Windows named pipe."
             )
 
     def assert_isolated(self, *, empty=False):

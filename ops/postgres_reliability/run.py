@@ -381,6 +381,9 @@ def run(lab, scratch):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--docker-context", default="default", help="Explicit local Docker context"
+    )
+    parser.add_argument(
         "--evidence", type=Path, help="Write verified evidence to a new JSON file"
     )
     args = parser.parse_args()
@@ -389,7 +392,7 @@ def main():
     try:
         with TemporaryDirectory(prefix="syncops-postgres-reliability-") as temporary:
             scratch = Path(temporary)
-            evidence = run(Lab(scratch), scratch)
+            evidence = run(Lab(scratch, docker_context=args.docker_context), scratch)
         rendered = json.dumps(evidence, indent=2) + "\n"
         if args.evidence:
             with args.evidence.open("x", encoding="utf-8") as output:
