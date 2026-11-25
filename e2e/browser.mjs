@@ -222,7 +222,14 @@ async function findEvent(page, event) {
     const url = new URL(response.url());
     return url.origin === base.origin && url.pathname === '/api/v1/events' && url.searchParams.get('search') === event.id;
   });
-  await page.getByRole('searchbox', { name: 'Search events' }).fill(event.id);
+  const search = page.getByRole('searchbox', { name: 'Search events' });
+  const hasIconClearance = await search.evaluate(input => {
+    const icon = input.parentElement.querySelector('svg');
+    const contentStart = input.getBoundingClientRect().left + parseFloat(getComputedStyle(input).paddingLeft);
+    return icon !== null && contentStart > icon.getBoundingClientRect().right;
+  });
+  assert(hasIconClearance, 'Search text clears its search icon');
+  await search.fill(event.id);
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   const response = await searchResponse;
   assert.equal(response.status(), 200);

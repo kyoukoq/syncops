@@ -1,8 +1,10 @@
 # SyncOps
 
-**Integration monitoring and recovery for a self-hosted operations lab.**
+[![CI](https://github.com/kyoukoq/syncops/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/kyoukoq/syncops/actions/workflows/ci.yml) [![Container assurance](https://github.com/kyoukoq/syncops/actions/workflows/supply-chain.yml/badge.svg?branch=main)](https://github.com/kyoukoq/syncops/actions/workflows/supply-chain.yml)
 
-SyncOps tracks synthetic CRM, ERP and TMS synchronization jobs. Operators can see what failed, follow retry history using a correlation ID and replay a dead-letter event after resolving its cause. The lab uses local services and has no paid runtime dependency.
+**A self-hosted integration reliability platform and DevOps engineering lab.**
+
+When a logistics order update fails between a CRM, ERP and transport system, an operator needs to know what happened, whether the system will retry and how to recover without creating a duplicate. SyncOps makes that delivery lifecycle visible. It records synthetic events and attempts, ties investigation to stable correlation IDs and audits authorized recovery. The lab uses local services with synthetic data.
 
 ## What you can demonstrate
 
@@ -11,6 +13,14 @@ SyncOps tracks synthetic CRM, ERP and TMS synchronization jobs. Operators can se
 - Simulate a temporary outage or a rate limit and inspect retry attempts and scheduling.
 - Investigate permanent failure, authorize a replay and verify the result and audit history.
 - Confirm ingress idempotency and understand how the simulator deduplicates a repeated delivery.
+
+## Local application screenshots
+
+Windows Chromium captured these screens against the local WSL2 PostgreSQL deployment with synthetic data.
+
+![SyncOps overview with actual delivery counts and activity chart](docs/images/local-overview.png)
+
+![SyncOps event recovery with HTTP 422, successful replay and audit history](docs/images/local-event-recovery.png)
 
 ## Start on Windows
 
@@ -26,16 +36,19 @@ The native SQLite database and local logs are stored in the ignored `.syncops/` 
 
 ## Start the Compose profile
 
-The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires Docker Engine 28.0+, Compose v2 and BuildKit support, plus PowerShell 7.4+ for the settings generator. Initialize new local secrets once.
+The Compose profile uses PostgreSQL and a frontend reverse proxy. It requires Docker Engine 28.0+, the Docker Compose plugin and BuildKit. Open Ubuntu WSL2 and keep the terminal open while using the lab.
 
-```powershell
-pwsh -File scripts/Initialize-Compose.ps1
-docker compose up -d --build --wait
+```bash
+systemctl --user start docker
+docker context use rootless
+cd ~/SyncOps
+bash scripts/syncops.sh start compose
+bash scripts/syncops.sh urls compose
 ```
 
-Open [SyncOps on port 8080](http://127.0.0.1:8080/) and use the admin password from your local `.env`. The application, database and mock are on a private Compose network. Stop services with `docker compose down` and keep the named database volume. See [project status](PROJECT_STATUS.md) for current profile verification and Kubernetes lab progress.
+Open [SyncOps on port 8080](http://127.0.0.1:8080/) from Windows and use the admin password from the Ubuntu checkout's private `.env`. The database and mock stay on private Compose networks. Stop services with `bash scripts/syncops.sh stop compose`. The named volumes retain the data. See the [operator guide](docs/runbooks/local-operations.md) for backup, restore drills, demo batches and the Kubernetes profile.
 
-The optional [observability overlay](docs/runbooks/observability.md) adds local Prometheus, Grafana OSS and Alertmanager to the Compose profile.
+Use `bash scripts/syncops.sh start logs` for the full observability profile. Verified Windows loopback endpoints include [Grafana](http://127.0.0.1:3000/), [Prometheus](http://127.0.0.1:9090/) and [Alertmanager](http://127.0.0.1:9093/). Use a separate Grafana credential. Loki and Alloy collect worker logs without exposing their HTTP APIs to Windows. [Observability runbook](docs/runbooks/observability.md)
 
 ## Architecture
 
@@ -50,6 +63,78 @@ flowchart LR
 ```
 
 The API stores an event and its queue state before acknowledging ingestion. A worker claims due work, records an attempt and sends the event to a fixed mock adapter. A response can be lost after an effect commits. Delivery is at least once when retries or lease recovery occur. The mock adapter deduplicates the effect using the stable event ID. See [architecture decisions](docs/adr/0001-core-architecture.md) and the [trust boundary](docs/adr/0002-simulator-trust-boundary.md).
+
+### Delivery pipeline
+
+```mermaid
+flowchart LR
+  PR[Code and pull request] --> CI[Backend, frontend and Compose checks]
+  PR --> Security[Dependency, history and image checks]
+  CI --> Publish[Verified image publishing]
+  Security --> Publish
+  Publish --> GHCR[GHCR digests, SBOM and provenance]
+```
+
+### Kubernetes lab
+
+```mermaid
+flowchart LR
+  Operator[Local operator] --> Forward[Loopback port forwarding]
+  Forward --> Staging
+  Forward --> ProductionLab
+  subgraph Kind[Local kind cluster]
+    subgraph Staging[Staging namespace]
+      StageWeb[Web and API Services] --> StageDB[(PostgreSQL PVC)]
+      StageWorker[Worker replicas and mock] --> StageDB
+    end
+    subgraph ProductionLab[Production Lab namespace]
+      ProdWeb[Web and API Services] --> ProdDB[(PostgreSQL PVC)]
+      ProdWorker[Worker replicas and mock] --> ProdDB
+    end
+  end
+```
+
+### GitOps promotion and recovery
+
+```mermaid
+flowchart LR
+  Digest[Image digest in environment Git revision] --> Argo[Argo CD]
+  Argo --> Stage[Staging sync and health]
+  Stage --> Promote[Verify healthy revision and promote]
+  Promote --> Prod[Production Lab sync and health]
+  Prod --> Verify[Verify real delivery]
+  Revert[Git revert after failure] --> Argo
+  Argo --> Drift[Reconcile live configuration drift]
+```
+
+### Observability
+
+```mermaid
+flowchart LR
+  API[API metrics] --> Prometheus
+  Prometheus --> Alertmanager
+  Prometheus --> Grafana
+  Worker[Worker JSON stdout] --> Syslog[Docker syslog]
+  Syslog --> Alloy[Grafana Alloy]
+  Alloy --> Loki
+  Loki --> Grafana
+  Browser[Console event correlation ID] --> Grafana
+```
+
+### Engineering ownership
+
+```mermaid
+flowchart LR
+  Owner[Product Owner defines scope and accepts release risk] --> Lead[Lead agent coordinates and integrates]
+  Lead --> Work[Architecture, backend, frontend and platform assignments]
+  Work --> Review[Independent QA and security reviews]
+  Work --> Docs[Evidence and operational documentation]
+  Review --> Lead
+  Docs --> Lead
+  Lead --> Decision[Integrated checks and release decision]
+```
+
+React and TypeScript provide the operator console. FastAPI, SQLAlchemy and Alembic implement the API, worker and schema lifecycle on SQLite or PostgreSQL. Docker Compose, kind and Helm host the lab profiles. The repository separates image publishing and attestations from GitOps deployment verification. Follow the [technical guide](docs/technical-guide.md), [presentation walkthrough](docs/portfolio-presentation.md) and [acceptance evidence](docs/verification.md) for the implementation, tested revisions and limits.
 
 ## API and configuration
 
@@ -82,6 +167,7 @@ If the native launcher exits, inspect `.syncops/logs/`. Ports 5173, 8000 and 800
 - [Central worker log investigation](docs/runbooks/trace-worker-incident.md)
 - [PostgreSQL recovery and reliability drill](ops/postgres_reliability/README.md)
 - [Container supply chain](docs/supply-chain.md)
+- [Security risk register](docs/security-risk-register.md)
 - [Portfolio lifecycle walkthrough](docs/advanced-lab-demo.md)
 
 ## Project records

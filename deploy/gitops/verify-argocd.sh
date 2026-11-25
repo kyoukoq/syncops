@@ -62,7 +62,9 @@ wait_for_release() {
 run_smoke() {
     local namespace="syncops-$1" password port base_url log="$fixture_dir/port-forward.log"
     password=$(kube -n "$namespace" get secret "$namespace-api-auth" -o 'jsonpath={.data.admin-password}' | base64 -d)
-    echo "::add-mask::$password"
+    if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+        echo "::add-mask::$password"
+    fi
     kubectl --context "$context" -n "$namespace" port-forward --address 127.0.0.1 \
         "svc/$namespace-web" :8080 > "$log" 2>&1 &
     forward_pid=$!

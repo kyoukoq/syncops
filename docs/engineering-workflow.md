@@ -33,3 +33,16 @@ Public GitHub repositories and standard public GitHub-hosted runners fit the lab
 - The initial Platform and Security follow-up assignments hit the included Codex usage limit. The lead reassigned Kubernetes and completed the supply-chain lane directly. The failed starts did not create implementation work.
 
 The local app-server confirmed the project config layer and its concurrency limit of three. A native custom `syncops_architect` invocation returned its expected verification marker under the ChatGPT account. Ephemeral CLI testing encountered a thread-store limitation. The named executions succeeded in regular local CLI sessions. The six other exact names also returned `ROLE_OK` in a bounded run. The diagnostic CLI PowerShell startup probes were blocked by Windows package identity restrictions. The lead performed the repository inspection directly.
+
+## Local release acceptance assignments
+
+| Native agent | Assignment | Recorded work |
+| --- | --- | --- |
+| `syncops_platform` | Operator workflows in an isolated worktree | Implemented Windows and WSL2 launchers and safety tests. Restored a synthetic SQLite snapshot outside the live database. |
+| `syncops_security` | Independent candidate and source assurance | Reran Trivy, Gitleaks and package audits, verified both attestation predicates and documented residual findings. |
+| `syncops_documentation` | Public guides and private learning guide | Authored the technical implementation guide, architecture diagrams, ten-minute portfolio presentation and a private Ukrainian guide. |
+| `syncops_qa` | Read-only independent workstation test | Compared authenticated event histories with PostgreSQL rows and mock effects for all ten seeded cases. Verified the three role boundaries and Retry-After timing. |
+| `syncops_architect` | Independent operational and release review | Reviewed cgroup delegation, rollout identity, namespace boundaries and release criteria. The lead addressed the stale local image tag and added a network isolation assertion. |
+| `syncops_frontend` | Independent screenshots and targeted fix | Inspected actual workstation captures, verified timezone labels and corrected overlapping search field text. |
+
+The lead configured the workstation, exercised the local deployment and Chromium suite, integrated the changes and owns the release decision. A maximum of three subagents worked concurrently.

@@ -10,6 +10,7 @@ EventType = Literal[
     "customer.updated",
     "account.synced",
     "order.created",
+    "shipment.created",
     "shipment.updated",
 ]
 Status = Literal["queued", "processing", "retry_scheduled", "succeeded", "dead_letter"]

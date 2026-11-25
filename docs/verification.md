@@ -1,5 +1,7 @@
 # SyncOps MVP acceptance evidence
 
+See the separate [2026-11-25 local release acceptance report](local-acceptance.md) for WSL2 Docker, the local Compose console opened from Windows, and workstation measurements. The evidence below records the earlier Windows SQLite and hosted integration runs.
+
 The native Windows lab used a loopback API, a local SQLite database and synthetic CRM, ERP and TMS adapters. Run `afcaab34` exercised the live API, durable worker and mock destination. The suite created a dedicated integration, disabled it after the run and revoked all three test sessions.
 
 ## Scenario results
@@ -24,7 +26,7 @@ The native Windows lab used a loopback API, a local SQLite database and syntheti
 | Access and sessions | Passed | Anonymous overview requests, viewer writes, operator administration and non-admin audit requests were rejected. The focused audit regression verified that event-level audit entries are visible to administrators. |
 | Backend and database | Passed | All 14 pytest cases passed, followed by a passing focused audit regression. Ruff, `pip check` and the SQLite Alembic upgrade, check, downgrade and re-upgrade passed. |
 | Frontend production build | Passed | TypeScript and the Vite production build passed. |
-| Windows browser acceptance | Blocked | Browser origin permission for the local console was declined. |
+| Earlier native SQLite browser origin | Blocked | The in-app browser origin permission for port 5173 was declined. The later port-8080 local Compose acceptance has its own report. |
 | PostgreSQL Compose and hosted Chromium | Passed | Standard GitHub-hosted CI built and started the Compose stack, verified real PostgreSQL delivery, and passed sign-in, DLQ search, replay, preserved attempt and audit history, theme, mobile navigation and sign-out in Chromium. [GitHub Actions run](https://github.com/kyoukoq/syncops/actions/runs/45506797414) |
 | Optional monitoring profile | Passed | The hosted Compose run validated three alert rules, observed real delivery metrics through Prometheus and Grafana, verified dashboard provisioning, and observed the stale-worker alert firing and resolving in Alertmanager. [GitHub Actions run](https://github.com/kyoukoq/syncops/actions/runs/45507954694) |
 | Hosted all-page console | Passed | Browser coverage verified live data, integration management, filter navigation, recovery, three roles, console health and mobile navigation. [Chromium acceptance](https://github.com/kyoukoq/syncops/actions/runs/45513587704) |

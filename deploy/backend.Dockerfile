@@ -1,13 +1,14 @@
-FROM python:3.12-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS dependencies
+ARG PYTHON_IMAGE=python:3.12.16-alpine3.24@sha256:c5ba3deef00c7758561a0f03c26f44f10589263d40e732b8748e0d1f38f6dd89
+FROM ${PYTHON_IMAGE} AS dependencies
 
 WORKDIR /build
 COPY requirements.txt .
-RUN python -m venv /opt/venv \
-    && /opt/venv/bin/python -m pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
+RUN python -m venv --without-pip /opt/venv \
+    && python -m pip --python /opt/venv install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
-FROM python:3.12-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b
+FROM ${PYTHON_IMAGE}
 
-RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache && python -m pip uninstall --yes pip
 
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
