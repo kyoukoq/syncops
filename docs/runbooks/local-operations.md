@@ -61,20 +61,20 @@ After Windows restarts, open Ubuntu, start the local Docker daemon, return to th
 Install the versioned tools listed in the [Kubernetes lab guide](../../deploy/kubernetes/README.md) in Ubuntu and keep the daemon local. Stop Compose before working on the Kubernetes profile to reduce memory use. Rootless Docker requires cgroup v2 and delegation for kind. [kind rootless requirements](https://kind.sigs.k8s.io/docs/user/rootless/)
 
 ```bash
-bash scripts/syncops.sh start kind
+systemd-run --user --scope -p Delegate=yes bash scripts/syncops.sh start kind
 bash scripts/syncops.sh status kind
 bash scripts/syncops.sh open kind staging
 ```
 
 The launcher uses a private kubeconfig under `.syncops/`, a dedicated kind node and separate staging and production-lab Helm deployments. Keep `open` running in a foreground terminal, then run `bash scripts/syncops.sh urls kind staging` in a second terminal. Use `production-lab` instead of `staging` for the other namespace. Their console forwards use ports 18080 and 18081. Use the [Kubernetes lab guide](../../deploy/kubernetes/README.md) for private credential retrieval with the launcher's `.syncops/kind-local.yaml` kubeconfig and `kind-syncops-local` context.
 
-Close a port-forward with **Ctrl+C**. Run `bash scripts/syncops.sh stop kind` to stop the owned node and retain its storage. Run `bash scripts/syncops.sh start kind` to resume it after a Windows restart. The node and its storage share one failure domain. Preserve important data with a database backup.
+Close a port-forward with **Ctrl+C**. Run `bash scripts/syncops.sh stop kind` to stop the owned node and retain its storage. Run the same scoped start command to resume it after a Windows restart. The node and its storage share one failure domain. Preserve important data with a database backup.
 
 The acceptance commands create disposable clusters for the Kubernetes and Argo CD procedures used in CI. They exercise deliberate deployment failures and clean up their temporary infrastructure. Run them one at a time with the persistent cluster stopped. GitOps uses local registry port 5001 and a private Git fixture. It does not require a hosted Git repository, external credentials or public network listeners.
 
 ```bash
-bash scripts/syncops.sh verify kind
-bash scripts/syncops.sh verify gitops
+systemd-run --user --scope -p Delegate=yes bash scripts/syncops.sh verify kind
+systemd-run --user --scope -p Delegate=yes bash scripts/syncops.sh verify gitops
 ```
 
 See the [GitOps lab guide](../../deploy/gitops/README.md) for the drift, promotion and rollback assertions. Treat a nonzero acceptance exit as a failed check and use the command output for diagnosis. Review the evidence for each run before making release claims.

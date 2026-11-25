@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added local Windows and WSL2 operator commands, PostgreSQL backup and an isolated restore drill entry point.
+- Changed the backend image to supported CPython on Alpine and removed pip from the runtime. The security register tracks bundled-library and SQLite limitations.
 - Added shipment creation and named synthetic demo batches, explicit timezone offsets and a search-field layout fix.
 - Recorded WSL2 rootless Compose, Windows Chromium and correlated local observability evidence. Added a technical guide, portfolio presentation and security risk register.
 - Added verified Helm deployment and Argo CD staging, production-lab promotion, drift reconciliation and Git revert recovery.

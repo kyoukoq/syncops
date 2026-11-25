@@ -30,7 +30,19 @@ Historical [Container assurance run 45511484050](https://github.com/kyoukoq/sync
 
 [Candidate assurance run 45512578781](https://github.com/kyoukoq/syncops/actions/runs/45512578781) published the candidate references below and generated GitHub provenance and CycloneDX attestations. Provenance binds a build to an artifact digest and an identified build workflow. SBOMs describe inventoried components. GitHub CLI 2.105.0 verified both predicate types for each candidate digest against the publication workflow identity at refs/heads/main. Repeat verification on the release digests. See [supply-chain verification](supply-chain.md).
 
-## Backend vulnerability assessment
+## Alpine remediation candidate
+
+The final acceptance branch replaced the backend base with official CPython 3.12.16 on Alpine 3.24, pinned by manifest digest. It applies current Alpine package updates, installs the application in a venv without pip, and removes the base's pip installation from the final stage. The runtime still uses UID and GID 10001. [Official base image](https://github.com/docker-library/python/blob/3d7e95597e56a415d9e4abc0f15877e005d2cb2e/3.12/alpine3.24/Dockerfile)
+
+The independent experiment resolved 24 musllinux wheels and exercised non-root SQLite initialization, authentication, API readiness and worker shutdown. The same vulnerability database saw 38 Alpine OS packages compared with 87 in the Debian candidate. The initial Alpine experiment retained the six pip CVEs also present in the Debian build. The production Dockerfile removes those runtime installations. The subsequent workstation build `sha256:dba9385c77d1ffeea7abecf5f8581ac56e5f0189dd44b988ee37917fbbc06dae` passed a rootless, network-isolated runtime smoke check and Trivy reported zero OS or Python vulnerability rows across all severities. The digest identifies a local build, and the candidate published by GitHub must be assessed separately.
+
+| Remaining risk | Applicability and mitigation | Follow-up |
+| --- | --- | --- |
+| SQLite 3.53.4, three reviewed HIGH advisories | CPython links the Alpine SQLite library. The regular Compose and Helm lab uses PostgreSQL and accepts neither FTS5 queries nor untrusted SQLite changesets. The reviewed SQLite fixes are present in upstream 3.54.0. Alpine's current Trivy result does not establish a fix for those code paths. | Refresh the supported base and SQLite package when their security updates are available. Revalidate the SQLite fallback and review by 2026-12-02. |
+| Private libpq and OpenSSL bundled by Psycopg | The runtime wheel is linked to private libpq 18 and OpenSSL 3.5.4 in addition to CPython's system OpenSSL 3.5.9. Alpine package upgrades do not update the bundled copy. The lab uses private, fixed PostgreSQL destinations and no QUIC or HTTP/3 paths. | Review wheel updates and their bundled libraries. Evaluate linking to the supported system libpq, then repeat runtime and PostgreSQL reliability acceptance before adopting it. Review by 2026-12-02. |
+| Platform coverage and native Windows runtime | The build and acceptance focus on Linux amd64. The existing native Windows environment still needs its separate Python and SQLite refresh. | Keep the native database and credentials in place during any interpreter upgrade. Test other container architectures before offering them in the lab. |
+
+## Historical Debian backend vulnerability assessment
 
 Severity is the HIGH rating emitted by both Trivy scans. Advisory severity and the risk of reaching the affected code in SyncOps can differ. The version column lists the installed binaries on the candidate. Debian stable is `trixie` for these images.
 
@@ -55,8 +67,8 @@ Severity is the HIGH rating emitted by both Trivy scans. Advisory severity and t
 
 ## Remediation and base-image decision
 
-1. Refresh the official Python 3.12 slim trixie digest and rebuild when upstream support updates are available. Compare Trivy inventories and vendor advisory status before and after, including any bundled CPython, OpenSSL, SQLite, libpq and Python wheel updates. The current Dockerfile already applies Debian package upgrades to the runtime stage.
-2. Prefer stable packages for this lab. The supported `python:3.12-slim-bookworm` variant avoids the two listed OpenSSL 3.5 QUIC issues through its OpenSSL 3.0 package line. A move changes the full Debian package and patch inventory, and needs a comparative scan and regression run. The smaller official Python 3.12 Alpine variant is a second option. A binary-only `pip download` for CPython 3.12 amd64 with both `musllinux_1_1` and `musllinux_1_2` resolved 24 wheels, including psycopg-binary, pydantic-core and greenlet. That confirms package availability. Runtime compatibility and security posture need a container build, image scan and tests for scrypt logins, migration, PostgreSQL/SQLite startup, webhooks, worker delivery, and crash/retry recovery. Retain the existing `slim-trixie` image for this candidate while testing any migration separately and tracking Debian stable fixes. [Docker Official Python image variants](https://github.com/docker-library/docs/tree/master/python)
+1. Refresh the pinned Alpine Python image and repeat the scan and release checks when upstream issues a security update. Use vendor advisories as a second source for CPython, OpenSSL, SQLite, libpq and wheel-vendored libraries.
+2. A rollback to a prior Debian image reintroduces its unresolved advisories. Repeat the runtime review and verify the exact fallback digest and available Debian patches before approving it. [Docker Official Python image variants](https://github.com/docker-library/docs/tree/master/python)
 3. Review removable packages using the actual runtime inventory and dependency graph. A smaller runtime is useful only if it retains needed tools, reference libraries and security updates. Rebuild and rerun tests and scans after any package removal. This review kept the published image and its scanner policy intact.
 
 ## Reproduce the checks

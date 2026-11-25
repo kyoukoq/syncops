@@ -30,7 +30,7 @@ The lifecycle has been demonstrated across isolated hosted workflows. The status
 
 ## Seed the native demo
 
-From the repository root on Windows, run the seed script against your existing native profile. It creates three dedicated synthetic routes and uses stable idempotency keys for nine delivery scenarios.
+From the repository root on Windows, run the seed script against your existing native profile. It creates three dedicated synthetic routes and uses stable idempotency keys for ten deliveries. Use `--batch` with a new lowercase name to create a fresh set of incidents without deleting the existing demonstration history.
 
 ```powershell
 & .\.venv\Scripts\python.exe scripts/seed_demo.py --credentials .syncops/credentials.json
