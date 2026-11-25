@@ -88,6 +88,12 @@ smoke
 
 chart upgrade syncops charts/syncops --set worker.replicas=3 --wait --wait-for-jobs --timeout 3m
 verify_workers 3
+worker_selector='app.kubernetes.io/instance=syncops,app.kubernetes.io/component=worker'
+lost_worker=$(kube get pods -l "$worker_selector" -o 'jsonpath={.items[0].metadata.name}')
+kube delete pod "$lost_worker" --wait=true --timeout=60s
+verify_workers 3
+[[ -z $(kube get pod "$lost_worker" --ignore-not-found -o name) ]]
+echo 'The worker deployment replaced a deleted pod and recovered three ready replicas'
 
 signature_sql="SELECT concat_ws(':',
     (SELECT string_agg(id, ',' ORDER BY id) FROM events WHERE status = 'succeeded'),
@@ -136,3 +142,16 @@ install_release
 smoke
 [[ $(database 'SELECT count(*) FROM mock_operations;') == 1 ]]
 echo 'Production lab used separate credentials and storage and delivered its own event'
+kube exec -i deployment/syncops-api -- python - <<'PY'
+import socket
+
+with socket.create_connection(("syncops-db", 5432), timeout=5):
+    pass
+
+staging_address = socket.gethostbyname("syncops-db.syncops-staging.svc.cluster.local")
+try:
+    with socket.create_connection((staging_address, 5432), timeout=3):
+        raise SystemExit("The production-lab API reached the staging database")
+except OSError:
+    print("NetworkPolicy blocks the staging database while the local database is reachable")
+PY
