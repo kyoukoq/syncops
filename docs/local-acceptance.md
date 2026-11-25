@@ -45,6 +45,7 @@ The [incident postmortem](runbooks/local-incident-postmortem.md) records the ERP
 | --- | --- |
 | Worker crash and lease recovery | Exit 137 after one committed effect. The recovery worker observed the expired lease in 29.737 s, preserved the interrupted attempt and completed with exactly one effect. |
 | Concurrent delivery and duplicate prevention | 48 requests produced 24 unique deliveries, 12 processed by each worker with overlapping attempt times. Every delivery succeeded and zero business effects were duplicated. |
+| Lab delivery SLI | All 24 eligible deliveries completed within 30 seconds, meeting the 99% objective for this sample. The terminal latency maximum was 2.892 s. |
 | Queue and terminal latency | Queue p95 2.620 s. Enqueue to terminal p95 2.889 s. Observed throughput 6.372 events/s for this short workload. |
 | Backup and data recovery | A 25,273-byte archive completed in 4.358 s. Restored table counts and fingerprints matched. API access and new delivery passed. |
 | Observed RTO | 25.813 s from simulated data loss to verified new delivery. Planned preparation before the loss is outside the measurement. |
@@ -62,6 +63,8 @@ The [incident postmortem](runbooks/local-incident-postmortem.md) records the ERP
 ## Local Argo CD
 
 The disposable Argo CD Core 3.6.3 lab synced digest-pinned images from a local Git fixture and loopback registry. In the first local run, both environments reached the baseline commit `0e35f48`, staging corrected manually introduced replica drift, and healthy staging commit `8e6c72e` was promoted as the exact Git tree of `48f0b05`. The deliberately missing image in `bbedf5e` failed the staging gate while Production Lab stayed healthy. Staging revert `f564f71` and Production Lab revert `a72eddc` both restored healthy revisions and successful delivery. These Git commits belong to the disposable fixture.
+
+The Alpine rerun passed the same gates, including staging revert `40aeb7d` and Production Lab revert `d58873a`. The persistent launcher separately stopped and resumed the cluster with the same staging PVC. Windows returned HTTP 200 from Staging on port 18080 and Production Lab on port 18081 while the port-forwards ran.
 
 ## Release and security
 

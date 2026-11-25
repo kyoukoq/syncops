@@ -1,8 +1,10 @@
 # PostgreSQL reliability drill
 
-Run from the repository root with Python 3.12 or newer, a running local Docker engine in the default context, and Docker Compose v2. The drill builds the existing backend image and uses the public PostgreSQL 17 image. It requires no application dependencies on the host.
+Run from the repository root with Python 3.12 or newer, a running local Docker Engine and the Docker Compose plugin. The drill builds the existing backend image and uses the public PostgreSQL 17 image. It requires no application dependencies on the host.
 
     python -m ops.postgres_reliability.run
+
+For the WSL2 rootless context, use `bash scripts/syncops.sh restore-drill compose` or pass `--docker-context rootless` explicitly.
 
 To keep the non-sensitive result, choose a new path outside the tracked files.
 

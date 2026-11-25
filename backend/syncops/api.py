@@ -52,7 +52,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="SyncOps",
-    version="0.1.0",
+    version="0.2.0",
     description="Integration monitoring and recovery for synthetic CRM, ERP and TMS systems.",
     lifespan=lifespan,
 )

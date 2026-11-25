@@ -68,7 +68,7 @@ bash scripts/syncops.sh open kind staging
 
 The launcher uses a private kubeconfig under `.syncops/`, a dedicated kind node and separate staging and production-lab Helm deployments. Keep `open` running in a foreground terminal, then run `bash scripts/syncops.sh urls kind staging` in a second terminal. Use `production-lab` instead of `staging` for the other namespace. Their console forwards use ports 18080 and 18081. Use the [Kubernetes lab guide](../../deploy/kubernetes/README.md) for private credential retrieval with the launcher's `.syncops/kind-local.yaml` kubeconfig and `kind-syncops-local` context.
 
-Close a port-forward with **Ctrl+C**. Run `bash scripts/syncops.sh stop kind` to stop the owned node and retain its storage. Run the same scoped start command to resume it after a Windows restart. The node and its storage share one failure domain. Preserve important data with a database backup.
+Close a port-forward with **Ctrl+C**. Run `bash scripts/syncops.sh stop kind` to drain the SyncOps Pods, then stop the owned node with its persistent storage intact. Run the same scoped start command to resume scheduling after a Windows restart. The node and its storage share one failure domain. Preserve important data with a database backup. [Kubernetes drain and resume](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_drain/)
 
 The acceptance commands create disposable clusters for the Kubernetes and Argo CD procedures used in CI. They exercise deliberate deployment failures and clean up their temporary infrastructure. Run them one at a time with the persistent cluster stopped. GitOps uses local registry port 5001 and a private Git fixture. It does not require a hosted Git repository, external credentials or public network listeners.
 
