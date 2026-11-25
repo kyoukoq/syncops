@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-The [v0.1.0 MVP preview](https://github.com/kyoukoq/syncops/releases/tag/v0.1.0) remains the published release. The Advanced DevOps Lab entered local acceptance from main revision `f0e4aca`. The workstation has a dedicated Ubuntu WSL2 checkout and separate PostgreSQL credentials. Native Windows operation still uses SQLite.
+[SyncOps v0.2.0](https://github.com/kyoukoq/syncops/releases/tag/v0.2.0) was published as stable on 2026-11-25. The annotated Git tag resolves to the approved source commit `2884aeb5c8b72610754b430b799046be43f33825`. The workstation has a dedicated Ubuntu WSL2 checkout and separate PostgreSQL credentials. Native Windows operation still uses SQLite. [Release decision](docs/releases/v0.2.0.md)
 
 ## Local acceptance
 
@@ -15,9 +15,9 @@ The [v0.1.0 MVP preview](https://github.com/kyoukoq/syncops/releases/tag/v0.1.0)
 | Kubernetes and Helm | Passed | Rootless kind ran Kubernetes 1.35.0 with Helm 4.3.1. The lab scaled two workers to three, replaced a worker Pod, preserved PostgreSQL state through Pod replacement, rolled back a failed upgrade and verified delivery and network isolation in both namespaces. |
 | Argo CD | Passed | Argo CD Core 3.6.3 reached healthy, digest-pinned revisions, repaired live replica drift, promoted the healthy staging tree to Production Lab and recovered both environments from Git reverts. |
 | Isolated PostgreSQL restore and load | Passed | The Alpine backend passed lease recovery, 24 unique deliveries from 48 requests with zero duplicate effects, and a verified database restore. Observed recovery was 25.813 s. |
-| Backend runtime remediation | Passed for local scan | The supported Alpine base reduced the backend package inventory from 87 to 38 and the same Trivy database reported zero OS and Python rows after pip was removed from runtime. SQLite and wheel-vendored libraries remain separately tracked. |
+| Backend runtime remediation | Passed | The supported Alpine base reduced the backend package inventory from 87 to 38. Trivy reported zero findings for the exact approved backend and frontend images. SQLite and wheel-vendored libraries remain separately tracked. [Security risk register](docs/security-risk-register.md) |
 | Core regressions | Passed | 15 backend tests, Ruff, TypeScript and Vite production build. Dependency audits and Gitleaks also passed in an independent security review. |
-| Stable release | Blocked | Explicit Product Owner acceptance of material [security risks](docs/security-risk-register.md) and assurance for the exact proposed release digests are required. |
+| Stable release | Passed | The Product Owner accepted the exact artifacts for the documented lab scope. Both public GHCR stable tags were verified before publication and resolve to the same attested manifests. [Release decision](docs/releases/v0.2.0.md) |
 
 The [local verification report](docs/local-acceptance.md) records tools, commands, loopback endpoints and observed recovery measurements.
 
@@ -38,9 +38,10 @@ The [local verification report](docs/local-acceptance.md) records tools, command
 
 The load and recovery measurements represent one disposable runner with a small synthetic dataset. They do not establish a production service-level claim.
 
-## Active or blocked gates
+## Known limitations
 
 - **Native browser origin**. The previously declined in-app permission for `http://127.0.0.1:5173` concerns the SQLite console. The separate Compose console at port 8080 opened in the in-app browser and passed its local Chromium suite.
-- **Release**. v0.2.0 awaits the final evidence and explicit risk decision. GHCR candidate tags identify prerelease artifacts.
+- **Live HTTPS Ingress**. The Kubernetes deployment was exercised with loopback port-forwards. Live HTTPS Ingress was not run.
+- **Deployment scope**. The acceptance covers a single local Windows and WSL2 host with synthetic data, trusted users, and loopback-only access. [Security risk register](docs/security-risk-register.md)
 
 See the [acceptance report](docs/verification.md), [Windows activation runbook](docs/runbooks/windows-container-host.md), and [portfolio demonstration](docs/advanced-lab-demo.md).
